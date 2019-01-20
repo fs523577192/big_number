@@ -1387,8 +1387,94 @@ class BigInteger: Number, Comparable<BigInteger> {
         }
     }
 
-    // ----==== Shift Operations ====----
+    // ----==== Single Bit Operations ====----
+    /**
+     * Returns `true` if and only if the designated bit is set.
+     * (Computes `((this & (1<<n)) != 0)`.)
+     *
+     * @param  n index of bit to test.
+     * @return `true` if and only if the designated bit is set.
+     * @throws ArithmeticException `n` is negative.
+     */
+    fun testBit(n: Int): Boolean {
+        if (n < 0) {
+            throw ArithmeticException("Negative bit address")
+        }
+        return getInt(n.ushr(5)) and (1 shl (n and 31)) != 0
+    }
 
+    /**
+     * Returns a BigInteger whose value is equivalent to this BigInteger
+     * with the designated bit set.  (Computes `(this | (1<<n))`.)
+     *
+     * @param  n index of bit to set.
+     * @return `this | (1<<n)`
+     * @throws ArithmeticException `n` is negative.
+     */
+    fun setBit(n: Int): BigInteger {
+        if (n < 0) {
+            throw ArithmeticException("Negative bit address")
+        }
+        val intNum = n.ushr(5)
+        val result = IntArray(maxOf(intLength(), intNum + 2))
+
+        for (i in result.indices) {
+            result[result.size - i - 1] = getInt(i)
+        }
+        result[result.size - intNum - 1] = result[result.size - intNum - 1] or (1 shl (n and 31))
+
+        return valueOf(result)
+    }
+
+    /**
+     * Returns a BigInteger whose value is equivalent to this BigInteger
+     * with the designated bit cleared.
+     * (Computes `(this & ~(1<<n))`.)
+     *
+     * @param  n index of bit to clear.
+     * @return `this & ~(1<<n)`
+     * @throws ArithmeticException `n` is negative.
+     */
+    fun clearBit(n: Int): BigInteger {
+        if (n < 0) {
+            throw ArithmeticException("Negative bit address")
+        }
+        val intNum = n.ushr(5)
+        val result = IntArray(maxOf(intLength(), (n + 1).ushr(5) + 1))
+
+        for (i in result.indices) {
+            result[result.size - i - 1] = getInt(i)
+        }
+        result[result.size - intNum - 1] = result[result.size - intNum - 1] and (1 shl (n and 31)).inv()
+
+        return valueOf(result)
+    }
+
+    /**
+     * Returns a BigInteger whose value is equivalent to this BigInteger
+     * with the designated bit flipped.
+     * (Computes `(this ^ (1<<n))`.)
+     *
+     * @param  n index of bit to flip.
+     * @return `this ^ (1<<n)`
+     * @throws ArithmeticException `n` is negative.
+     */
+    fun flipBit(n: Int): BigInteger {
+        if (n < 0) {
+            throw ArithmeticException("Negative bit address")
+        }
+        val intNum = n.ushr(5)
+        val result = IntArray(maxOf(intLength(), intNum + 2))
+
+        for (i in result.indices) {
+            result[result.size - i - 1] = getInt(i)
+        }
+        result[result.size - intNum - 1] = result[result.size - intNum - 1] xor (1 shl (n and 31))
+
+        return valueOf(result)
+    }
+
+    // ----==== Shift Operations ====----
     /**
      * Returns a BigInteger whose value is `(this << n)`.
      * The shift distance, `n`, may be negative, in which case
