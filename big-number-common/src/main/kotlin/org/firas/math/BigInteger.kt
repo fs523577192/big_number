@@ -201,21 +201,6 @@ class BigInteger: Number, Comparable<BigInteger> {
     } // constructor(signum: Int, magnitude: ByteArray)
 
     /**
-     * Constructs a randomly generated BigInteger, uniformly distributed over
-     * the range 0 to (2<sup>`numBits`</sup> - 1), inclusive.
-     * The uniformity of the distribution assumes that a fair source of random
-     * bits is provided in `rnd`.  Note that this constructor always
-     * constructs a non-negative BigInteger.
-     *
-     * @param  numBits maximum bitLength of the new BigInteger.
-     * @param  rnd source of randomness to be used in computing the new
-     * BigInteger.
-     * @throws IllegalArgumentException `numBits` is negative.
-     * @see .bitLength
-     */
-    constructor(numBits: Int, rnd: Random); this(1, randomBits(numBits, rnd))
-
-    /**
      * Translates the String representation of a BigInteger in the
      * specified radix into a BigInteger.  The String representation
      * consists of an optional minus or plus sign followed by a
@@ -298,11 +283,10 @@ class BigInteger: Number, Comparable<BigInteger> {
 
         // Process remaining digit groups
         val superRadix = intRadix[radix]
-        var groupVal = 0
         while (cursor < len) {
             group = value.substring(cursor, cursor + digitsPerInt[radix])
             cursor += digitsPerInt[radix]
-            groupVal = group.toInt(radix)
+            val groupVal = group.toInt(radix)
             if (groupVal < 0)
                 throw NumberFormatException("Illegal digit")
             destructiveMulAdd(magnitude, superRadix, groupVal)
@@ -517,6 +501,23 @@ class BigInteger: Number, Comparable<BigInteger> {
                 return negConst[(-value).toInt()]!!
             }
             return BigInteger(value)
+        }
+
+        /**
+         * Constructs a randomly generated BigInteger, uniformly distributed over
+         * the range 0 to (2<sup>`numBits`</sup> - 1), inclusive.
+         * The uniformity of the distribution assumes that a fair source of random
+         * bits is provided in `rnd`.  Note that this constructor always
+         * constructs a non-negative BigInteger.
+         *
+         * @param  numBits maximum bitLength of the new BigInteger.
+         * @param  rnd source of randomness to be used in computing the new
+         * BigInteger.
+         * @throws IllegalArgumentException `numBits` is negative.
+         * @see .bitLength
+         */
+        fun fromRandom(numBits: Int, rnd: Random): BigInteger {
+            return BigInteger(1, randomBits(numBits, rnd))
         }
 
         /**
@@ -936,8 +937,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * non-negative
          */
         private fun add(x: IntArray, value: Long): IntArray {
-            val y: IntArray
-            var sum: Long = 0
+            var sum: Long
             var xIndex = x.size
             val result: IntArray
             val highWord = value.ushr(32).toInt()
@@ -1080,7 +1080,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             val highWord = value.ushr(32).toInt()
             var bigIndex = big.size
             val result = IntArray(bigIndex)
-            var difference: Long = 0
+            var difference: Long
 
             if (highWord == 0) {
                 difference = (big[--bigIndex].toLong() and LONG_MASK) - value

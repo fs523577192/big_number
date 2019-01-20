@@ -328,7 +328,7 @@ internal open class MutableBigInteger private constructor(
             return -1
         }
         var j: Int = this.intLen - 1
-        while (j > 0 && this.value[j + this.offset] === 0) {
+        while (j > 0 && this.value[j + this.offset] == 0) {
             j -= 1
         }
         val b = this.value[j + this.offset]
@@ -359,7 +359,7 @@ internal open class MutableBigInteger private constructor(
      * magnitude is zero, then intLen is zero.
      */
     internal fun normalize() {
-        if (this.intLen === 0) {
+        if (this.intLen == 0) {
             this.offset = 0
             return
         }
@@ -795,7 +795,7 @@ internal open class MutableBigInteger private constructor(
                 temp[0] = 1
                 result = temp
             } else {
-                result[rstart--] = 1
+                result[rstart] = 1
             }
         }
 
