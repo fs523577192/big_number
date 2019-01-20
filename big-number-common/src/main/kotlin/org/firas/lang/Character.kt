@@ -41,8 +41,8 @@ class Character {
          *
          * @see Character.digit
          * @see Character.forDigit
-         * @see Integer.toString
-         * @see Integer.valueOf
+         * @see Int.toString
+         * @see String.toInt
          */
         val MIN_RADIX = 2
 
@@ -55,8 +55,8 @@ class Character {
          *
          * @see Character.digit
          * @see Character.forDigit
-         * @see Integer.toString
-         * @see Integer.valueOf
+         * @see Int.toString
+         * @see String.toInt
          */
         val MAX_RADIX = 36
 
@@ -116,27 +116,23 @@ class Character {
             if (radix < MIN_RADIX || radix > MAX_RADIX) {
                 throw IllegalArgumentException("Invalid radix: $radix")
             }
-            if (ch >= '0' && ch <= '9') {
-                val result = ch.toInt() - '0'.toInt()
-                if (result >= radix) {
-                    throw NumberFormatException("Not a valid digit ($ch) with the radix $radix")
+            val result = when (ch) {
+                in '0' .. '9' -> {
+                    ch.toInt() - '0'.toInt()
                 }
-                return result
-            } else if (ch >= 'A' && ch <= 'Z') {
-                val result = ch.toInt() - 'A'.toInt() + 10
-                if (result >= radix) {
-                    throw NumberFormatException("Not a valid digit ($ch) with the radix $radix")
+                in 'A' .. 'Z' -> {
+                    ch.toInt() - 'A'.toInt() + 10
                 }
-                return result
-            } else if (ch >= 'a' && ch <= 'z') {
-                val result = ch.toInt() - 'a'.toInt() + 10
-                if (result >= radix) {
-                    throw NumberFormatException("Not a valid digit ($ch) with the radix $radix")
+                in 'a' .. 'z' -> {
+                    ch.toInt() - 'a'.toInt() + 10
                 }
-                return result
+                // TODO: full-width character
+                else -> throw NumberFormatException("Not a valid digit: $ch")
             }
-            // TODO: full-width character
-            throw NumberFormatException("Not a valid digit: $ch")
+            if (result >= radix) {
+                throw NumberFormatException("Not a valid digit ($ch) with the radix $radix")
+            }
+            return result
         }
     }
 }

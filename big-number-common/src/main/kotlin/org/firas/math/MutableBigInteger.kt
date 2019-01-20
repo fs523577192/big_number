@@ -91,6 +91,12 @@ internal open class MutableBigInteger private constructor(
     internal constructor(value: MutableBigInteger):
             this(value.value.copyOfRange(value.offset, value.offset + value.intLen), value.intLen)
 
+    /**
+     * Construct a new MutableBigInteger with a magnitude equal to the
+     * specified BigInteger.
+     */
+    internal constructor(value: BigInteger): this(value.mag.copyOf(), value.mag.size)
+
     companion object {
         // Constants
         /**
@@ -117,6 +123,28 @@ internal open class MutableBigInteger private constructor(
          * of two from the dividend and divisor.
          */
         internal val KNUTH_POW2_THRESH_ZEROS = 3
+
+        private fun copyAndShift(src: IntArray, srcFrom: Int, srcLen: Int,
+                                 dst: IntArray, dstFrom: Int, shift: Int) {
+            var srcFrom = srcFrom
+            val n2 = 32 - shift
+            var c = src[srcFrom]
+            for (i in 0 until srcLen - 1) {
+                val b = c
+                srcFrom += 1
+                c = src[srcFrom]
+                dst[dstFrom + i] = b shl shift or c.ushr(n2)
+            }
+            dst[dstFrom + srcLen - 1] = c shl shift
+        }
+
+        /**
+         * Compare two longs as if they were unsigned.
+         * Returns true iff one is bigger than two.
+         */
+        private fun unsignedLongCompare(one: Long, two: Long): Boolean {
+            return one + Long.MIN_VALUE > two + Long.MIN_VALUE
+        }
     }
 
     /**
@@ -124,6 +152,21 @@ internal open class MutableBigInteger private constructor(
      * MutableBigInteger begins.
      */
     internal var offset = 0
+
+    /**
+     * Convert this MutableBigInteger to a BigInteger object.
+     */
+    internal fun toBigInteger(sign: Int): BigInteger {
+        return if (this.intLen == 0 || sign == 0) BigInteger.ZERO else BigInteger(getMagnitudeArray(), sign)
+    }
+
+    /**
+     * Converts this number to a nonnegative `BigInteger`.
+     */
+    internal fun toBigInteger(): BigInteger {
+        normalize()
+        return toBigInteger(if (isZero()) 0 else 1)
+    }
 
     /**
      * Makes this number an `n`-int number all of whose bits are ones.
@@ -407,7 +450,7 @@ internal open class MutableBigInteger private constructor(
      * This does not get inlined on all platforms so it is not used
      * as often as originally intended.
      */
-    internal fun setInt(index: Int, value: Int) {
+    private fun setInt(index: Int, value: Int) {
         this.value[this.offset + index] = value
     }
 
@@ -425,7 +468,7 @@ internal open class MutableBigInteger private constructor(
      * Sets this MutableBigInteger's value array to a copy of the specified
      * array. The intLen is set to the length of the new array.
      */
-    internal fun copyValue(src: MutableBigInteger) {
+    private fun copyValue(src: MutableBigInteger) {
         copyValue(src.value, src.offset, src.intLen)
     }
 
@@ -433,7 +476,7 @@ internal open class MutableBigInteger private constructor(
      * Sets this MutableBigInteger's value array to a copy of the specified
      * array. The intLen is set to the length of the specified array.
     */
-    internal fun copyValue(value: IntArray) {
+    private fun copyValue(value: IntArray) {
         copyValue(value, 0, value.size)
     }
 
@@ -591,7 +634,7 @@ internal open class MutableBigInteger private constructor(
      * Subtracts the smaller of this and b from the larger and places the
      * result into this MutableBigInteger.
      */
-    fun subtract(b: MutableBigInteger): Int {
+    internal fun subtract(b: MutableBigInteger): Int {
         var a = this
         var b = b
 
@@ -638,6 +681,648 @@ internal open class MutableBigInteger private constructor(
         this.offset = this.value.size - resultLen
         normalize()
         return sign
+    }
+
+    /**
+     * Subtracts the smaller of a and b from the larger and places the result
+     * into the larger. Returns 1 if the answer is in a, -1 if in b, 0 if no
+     * operation was performed.
+     */
+    private fun difference(b: MutableBigInteger): Int {
+        var a = this
+        var b = b
+        val sign = a.compare(b)
+        if (sign == 0) {
+            return 0
+        }
+        if (sign < 0) {
+            val tmp = a
+            a = b
+            b = tmp
+        }
+
+        var diff = 0L
+        var x = a.intLen
+        var y = b.intLen
+
+        // Subtract common parts of both numbers
+        while (y > 0) {
+            x -= 1
+            y -= 1
+            diff = (a.value[a.offset+ x].toLong() and LONG_MASK) -
+                (b.value[b.offset+ y].toLong() and LONG_MASK) - (-(diff shr 32)).toInt()
+            a.value[a.offset+x] = diff.toInt()
+        }
+        // Subtract remainder of longer number
+        while (x > 0) {
+            x -= 1
+            diff = (a.value[a.offset+ x].toLong() and LONG_MASK) - (-(diff shr 32)).toInt()
+            a.value[a.offset+x] = diff.toInt()
+        }
+
+        a.normalize()
+        return sign
+    }
+
+    /**
+     * @see .divideKnuth
+     */
+    fun divideKnuth(b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger? {
+        return divideKnuth(b, quotient, true)
+    }
+
+    /**
+     * Calculates the quotient of this div b and places the quotient in the
+     * provided MutableBigInteger objects and the remainder object is returned.
+     *
+     * Uses Algorithm D in Knuth section 4.3.1.
+     * Many optimizations to that algorithm have been adapted from the Colin
+     * Plumb C library.
+     * It special cases one word divisors for speed. The content of b is not
+     * changed.
+     *
+     */
+    internal fun divideKnuth(b: MutableBigInteger, quotient: MutableBigInteger,
+                    needRemainder: Boolean): MutableBigInteger? {
+        var b = b
+        if (b.intLen == 0) {
+            throw ArithmeticException("BigInteger divide by zero")
+        }
+        // Dividend is zero
+        if (this.intLen == 0) {
+            quotient.intLen = 0
+            quotient.offset = 0
+            return if (needRemainder) MutableBigInteger() else null
+        }
+
+        val cmp = compare(b)
+        // Dividend less than divisor
+        if (cmp < 0) {
+            quotient.intLen = 0
+            quotient.offset = 0
+            return if (needRemainder) MutableBigInteger(this) else null
+        }
+        // Dividend equal to divisor
+        if (cmp == 0) {
+            quotient.value[0] = 1
+            quotient.intLen = 1
+            quotient.offset = 0
+            return if (needRemainder) MutableBigInteger() else null
+        }
+
+        quotient.clear();
+        // Special case one word divisor
+        if (b.intLen == 1) {
+            val r = divideOneWord(b.value[b.offset], quotient)
+            return if(needRemainder) {
+                if (r == 0) MutableBigInteger() else MutableBigInteger(r)
+            } else {
+                null
+            }
+        }
+
+        // Cancel common powers of two if we're above the KNUTH_POW2_* thresholds
+        if (intLen >= KNUTH_POW2_THRESH_LEN) {
+            val trailingZeroBits = minOf(getLowestSetBit(), b.getLowestSetBit())
+            if (trailingZeroBits >= KNUTH_POW2_THRESH_ZEROS*32) {
+                val a = MutableBigInteger(this)
+                b = MutableBigInteger(b)
+                a.rightShift(trailingZeroBits)
+                b.rightShift(trailingZeroBits)
+                val r = a.divideKnuth(b, quotient)
+                r!!.leftShift(trailingZeroBits)
+                return r
+            }
+        }
+
+        return divideMagnitude(b, quotient, needRemainder)
+    }
+
+    /**
+     * Computes `this/b` and `this%b` using the
+     * [ Burnikel-Ziegler algorithm](http://cr.yp.to/bib/1998/burnikel.ps).
+     * This method implements algorithm 3 from pg. 9 of the Burnikel-Ziegler paper.
+     * The parameter beta was chosen to b 2<sup>32</sup> so almost all shifts are
+     * multiples of 32 bits.<br></br>
+     * `this` and `b` must be nonnegative.
+     * @param b the divisor
+     * @param quotient output parameter for `this/b`
+     * @return the remainder
+     */
+    internal fun divideAndRemainderBurnikelZiegler(
+            b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger {
+        val r = intLen
+        val s = b.intLen
+
+        // Clear the quotient
+        quotient.intLen = 0
+        quotient.offset = quotient.intLen
+
+        if (r < s) {
+            return this
+        } else {
+            // Unlike Knuth division, we don't check for common powers of two here because
+            // BZ already runs faster if both numbers contain powers of two and cancelling them has no
+            // additional benefit.
+
+            // step 1: let m = min{2^k | (2^k)*BURNIKEL_ZIEGLER_THRESHOLD > s}
+            val m = 1 shl 32 - Integers.numberOfLeadingZeros(s / AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD)
+
+            val j = (s + m - 1) / m      // step 2a: j = ceil(s/m)
+            val n = j * m            // step 2b: block length in 32-bit units
+            val n32 = 32L * n         // block length in bits
+            val sigma = maxOf(0, n32 - b.bitLength()).toInt()   // step 3: sigma = max{T | (2^T)*B < beta^n}
+            val bShifted = MutableBigInteger(b)
+            bShifted.safeLeftShift(sigma)   // step 4a: shift b so its length is a multiple of n
+            safeLeftShift(sigma)     // step 4b: shift this by the same amount
+
+            // step 5: t is the number of blocks needed to accommodate this plus one additional bit
+            var t = ((bitLength() + n32) / n32).toInt()
+            if (t < 2) {
+                t = 2
+            }
+
+            // step 6: conceptually split this into blocks a[t-1], ..., a[0]
+            val a1 = getBlock(t - 1, t, n)   // the most significant block of this
+
+            // step 7: z[t-2] = [a[t-1], a[t-2]]
+            var z = getBlock(t - 2, t, n)    // the second to most significant block
+            z.addDisjoint(a1, n)   // z[t-2]
+
+            // do schoolbook division on blocks, dividing 2-block numbers by 1-block numbers
+            val qi = MutableBigInteger()
+            var ri: MutableBigInteger
+            for (i in t - 2 downTo 1) {
+                // step 8a: compute (qi,ri) such that z=b*qi+ri
+                ri = z.divide2n1n(bShifted, qi)!!
+
+                // step 8b: z = [ri, a[i-1]]
+                z = getBlock(i - 1, t, n)   // a[i-1]
+                z.addDisjoint(ri, n)
+                quotient.addShifted(qi, i * n)   // update q (part of step 9)
+            }
+            // final iteration of step 8: do the loop one more time for i=0 but leave z unchanged
+            ri = z.divide2n1n(bShifted, qi)!!
+            quotient.add(qi)
+
+            ri.rightShift(sigma)   // step 9: this and b were shifted, so shift back
+            return ri
+        }
+    }
+
+    /**
+     * This method implements algorithm 1 from pg. 4 of the Burnikel-Ziegler paper.
+     * It divides a 2n-digit number by a n-digit number.<br></br>
+     * The parameter beta is 2<sup>32</sup> so all shifts are multiples of 32 bits.
+     * <br></br>
+     * `this` must be a nonnegative number such that `this.bitLength() <= 2*b.bitLength()`
+     * @param b a positive number such that `b.bitLength()` is even
+     * @param quotient output parameter for `this/b`
+     * @return `this%b`
+     */
+    private fun divide2n1n(b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger? {
+        val n = b.intLen
+
+        // step 1: base case
+        if (n % 2 != 0 || n < AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD) {
+            return divideKnuth(b, quotient)
+        }
+
+        // step 2: view this as [a1,a2,a3,a4] where each ai is n/2 ints or less
+        val aUpper = MutableBigInteger(this)
+        aUpper.safeRightShift(32 * (n / 2))   // aUpper = [a1,a2,a3]
+        keepLower(n / 2)   // this = a4
+
+        // step 3: q1=aUpper/b, r1=aUpper%b
+        val q1 = MutableBigInteger()
+        val r1 = aUpper.divide3n2n(b, q1)
+
+        // step 4: quotient=[r1,this]/b, r2=[r1,this]%b
+        addDisjoint(r1, n / 2)   // this = [r1,this]
+        val r2 = divide3n2n(b, quotient)
+
+        // step 5: let quotient=[q1,quotient] and return r2
+        quotient.addDisjoint(q1, n / 2)
+        return r2
+    }
+
+    /**
+     * This method implements algorithm 2 from pg. 5 of the Burnikel-Ziegler paper.
+     * It divides a 3n-digit number by a 2n-digit number.<br/>
+     * The parameter beta is 2<sup>32</sup> so all shifts are multiples of 32 bits.<br/>
+     * <br/>
+     * `this` must be a nonnegative number such that `2*this.bitLength() <= 3*b.bitLength()`
+     * @param quotient output parameter for `this/b`
+     * @return `this%b`
+     */
+    private fun divide3n2n(b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger {
+        val n = b.intLen / 2   // half the length of b in ints
+
+        // step 1: view this as [a1,a2,a3] where each ai is n ints or less; let a12=[a1,a2]
+        val a12 = MutableBigInteger(this)
+        a12.safeRightShift(32*n)
+
+        // step 2: view b as [b1,b2] where each bi is n ints or less
+        val b1 = MutableBigInteger(b)
+        b1.safeRightShift(n * 32)
+        val b2 = b.getLower(n)
+
+        val r: MutableBigInteger
+        val d: MutableBigInteger
+        if (compareShifted(b, n) < 0) {
+            // step 3a: if a1<b1, let quotient=a12/b1 and r=a12%b1
+            r = a12.divide2n1n(b1, quotient)!!
+
+            // step 4: d=quotient*b2
+            d = MutableBigInteger(quotient.toBigInteger().multiply(b2))
+        } else {
+            // step 3b: if a1>=b1, let quotient=beta^n-1 and r=a12-b1*2^n+b1
+            quotient.ones(n)
+            a12.add(b1)
+            b1.leftShift(32*n)
+            a12.subtract(b1)
+            r = a12
+
+            // step 4: d=quotient*b2=(b2 << 32*n) - b2
+            d = MutableBigInteger(b2)
+            d.leftShift(32 * n)
+            d.subtract(MutableBigInteger(b2))
+        }
+
+        // step 5: r = r*beta^n + a3 - d (paper says a4)
+        // However, don't subtract d until after the while loop so r doesn't become negative
+        r.leftShift(32 * n)
+        r.addLower(this, n)
+
+        // step 6: add b until r>=d
+        while (r.compare(d) < 0) {
+            r.add(b)
+            quotient.subtract(MutableBigInteger.ONE)
+        }
+        r.subtract(d)
+
+        return r
+    }
+
+    /**
+     * Divide this MutableBigInteger by the divisor.
+     * The quotient will be placed into the provided quotient object &
+     * the remainder object is returned.
+     */
+    private fun divideMagnitude(div: MutableBigInteger,
+                                quotient: MutableBigInteger,
+                                needRemainder: Boolean): MutableBigInteger? {
+        // assert div.intLen > 1
+        // D1 normalize the divisor
+        val shift = Integers.numberOfLeadingZeros(div.value[div.offset])
+        // Copy divisor value to protect divisor
+        val dlen = div.intLen
+        val divisor: IntArray
+        val rem: MutableBigInteger // Remainder starts as dividend with space for a leading zero
+        if (shift > 0) {
+            divisor = IntArray(dlen)
+            copyAndShift(div.value, div.offset, dlen, divisor, 0, shift)
+            if (Integers.numberOfLeadingZeros(value[offset]) >= shift) {
+                val remarr = IntArray(intLen + 1)
+                rem = MutableBigInteger(remarr)
+                rem.intLen = intLen
+                rem.offset = 1
+                copyAndShift(value, offset, intLen, remarr, 1, shift)
+            } else {
+                val remarr = IntArray(intLen + 2)
+                rem = MutableBigInteger(remarr)
+                rem.intLen = intLen + 1
+                rem.offset = 1
+                var rFrom = offset
+                var c = 0
+                val n2 = 32 - shift
+                var i = 1
+                while (i < this.intLen + 1) {
+                    val b = c
+                    c = this.value[rFrom]
+                    remarr[i] = b shl shift or c.ushr(n2)
+                    i += 1
+                    rFrom += 1
+                }
+                remarr[intLen + 1] = c shl shift
+            }
+        } else {
+            divisor = div.value.copyOfRange(div.offset, div.offset + div.intLen)
+            rem = MutableBigInteger(IntArray(intLen + 1))
+            this.value.copyInto(rem.value, 1, this.offset, this.offset + this.intLen)
+            rem.intLen = this.intLen
+            rem.offset = 1
+        }
+
+        val nlen = rem.intLen
+
+        // Set the quotient size
+        val limit = nlen - dlen + 1
+        if (quotient.value.size < limit) {
+            quotient.value = IntArray(limit)
+            quotient.offset = 0
+        }
+        quotient.intLen = limit
+        val q = quotient.value
+
+
+        // Must insert leading 0 in rem if its length did not change
+        if (rem.intLen == nlen) {
+            rem.offset = 0
+            rem.value[0] = 0
+            rem.intLen += 1
+        }
+
+        val dh = divisor[0]
+        val dhLong = dh.toLong() and LONG_MASK
+        val dl = divisor[1]
+
+        // D2 Initialize j
+        for (j in 0 until limit - 1) {
+            // D3 Calculate qhat
+            // estimate qhat
+            var qhat = 0
+            var qrem = 0
+            var skipCorrection = false
+            val nh = rem.value[j + rem.offset]
+            val nh2 = nh + -0x80000000
+            val nm = rem.value[j + 1 + rem.offset]
+
+            if (nh == dh) {
+                qhat = 0.inv()
+                qrem = nh + nm
+                skipCorrection = qrem + -0x80000000 < nh2
+            } else {
+                val nChunk = nh.toLong() shl 32 or (nm.toLong() and LONG_MASK)
+                if (nChunk >= 0) {
+                    qhat = (nChunk / dhLong).toInt()
+                    qrem = (nChunk - qhat * dhLong).toInt()
+                } else {
+                    val tmp = divWord(nChunk, dh)
+                    qhat = (tmp and LONG_MASK).toInt()
+                    qrem = tmp.ushr(32).toInt()
+                }
+            }
+
+            if (qhat == 0) {
+                continue
+            }
+            if (!skipCorrection) { // Correct qhat
+                val nl = rem.value[j + 2 + rem.offset].toLong() and LONG_MASK
+                var rs = qrem.toLong() and LONG_MASK shl 32 or nl
+                var estProduct = (dl.toLong() and LONG_MASK) * (qhat.toLong() and LONG_MASK)
+
+                if (unsignedLongCompare(estProduct, rs)) {
+                    qhat -= 1
+                    qrem = ((qrem.toLong() and LONG_MASK) + dhLong).toInt()
+                    if (qrem.toLong() and LONG_MASK >= dhLong) {
+                        estProduct -= dl.toLong() and LONG_MASK
+                        rs = qrem.toLong() and LONG_MASK shl 32 or nl
+                        if (unsignedLongCompare(estProduct, rs))
+                            qhat -= 1
+                    }
+                }
+            }
+
+            // D4 Multiply and subtract
+            rem.value[j + rem.offset] = 0
+            val borrow = mulsub(rem.value, divisor, qhat, dlen, j + rem.offset)
+
+            // D5 Test remainder
+            if (borrow + -0x80000000 > nh2) {
+                // D6 Add back
+                divadd(divisor, rem.value, j + 1 + rem.offset)
+                qhat -= 1
+            }
+
+            // Store the quotient digit
+            q[j] = qhat
+        } // D7 loop on j
+        // D3 Calculate qhat
+        // estimate qhat
+        var qhat = 0
+        var qrem = 0
+        var skipCorrection = false
+        val nh = rem.value[limit - 1 + rem.offset]
+        val nh2 = nh + -0x80000000
+        val nm = rem.value[limit + rem.offset]
+
+        if (nh == dh) {
+            qhat = 0.inv()
+            qrem = nh + nm
+            skipCorrection = qrem + -0x80000000 < nh2
+        } else {
+            val nChunk = nh.toLong() shl 32 or (nm.toLong() and LONG_MASK)
+            if (nChunk >= 0) {
+                qhat = (nChunk / dhLong).toInt()
+                qrem = (nChunk - qhat * dhLong).toInt()
+            } else {
+                val tmp = divWord(nChunk, dh)
+                qhat = (tmp and LONG_MASK).toInt()
+                qrem = tmp.ushr(32).toInt()
+            }
+        }
+        if (qhat != 0) {
+            if (!skipCorrection) { // Correct qhat
+                val nl = rem.value[limit + 1 + rem.offset].toLong() and LONG_MASK
+                var rs = qrem.toLong() and LONG_MASK shl 32 or nl
+                var estProduct = (dl.toLong() and LONG_MASK) * (qhat.toLong() and LONG_MASK)
+
+                if (unsignedLongCompare(estProduct, rs)) {
+                    qhat -= 1
+                    qrem = ((qrem.toLong() and LONG_MASK) + dhLong).toInt()
+                    if (qrem.toLong() and LONG_MASK >= dhLong) {
+                        estProduct -= dl.toLong() and LONG_MASK
+                        rs = qrem.toLong() and LONG_MASK shl 32 or nl
+                        if (unsignedLongCompare(estProduct, rs))
+                            qhat -= 1
+                    }
+                }
+            }
+
+
+            // D4 Multiply and subtract
+            val borrow: Int
+            rem.value[limit - 1 + rem.offset] = 0
+            if (needRemainder)
+                borrow = mulsub(rem.value, divisor, qhat, dlen, limit - 1 + rem.offset)
+            else
+                borrow = mulsubBorrow(rem.value, divisor, qhat, dlen, limit - 1 + rem.offset)
+
+            // D5 Test remainder
+            if (borrow + -0x80000000 > nh2) {
+                // D6 Add back
+                if (needRemainder)
+                    divadd(divisor, rem.value, limit - 1 + 1 + rem.offset)
+                qhat -= 1
+            }
+
+            // Store the quotient digit
+            q[limit - 1] = qhat
+        }
+
+        if (needRemainder) {
+            // D8 Unnormalize
+            if (shift > 0) {
+                rem.rightShift(shift)
+            }
+            rem.normalize()
+        }
+        quotient.normalize()
+        return if (needRemainder) rem else null
+    }
+
+    /**
+     * This method is used for division of an n word dividend by a one word
+     * divisor. The quotient is placed into quotient. The one word divisor is
+     * specified by divisor.
+     *
+     * @return the remainder of the division is returned.
+     */
+    private fun divideOneWord(divisor: Int, quotient: MutableBigInteger): Int {
+        val divisorLong = divisor.toLong() and LONG_MASK
+
+        // Special case of one word dividend
+        if (this.intLen == 1) {
+            val dividendValue = this.value[this.offset].toLong() and LONG_MASK
+            val q = (dividendValue / divisorLong).toInt()
+            val r = (dividendValue - q * divisorLong).toInt()
+            quotient.value[0] = q
+            quotient.intLen = if (q == 0) 0 else 1
+            quotient.offset = 0
+            return r
+        }
+
+        if (quotient.value.size < this.intLen) {
+            quotient.value = IntArray(this.intLen)
+        }
+        quotient.offset = 0
+        quotient.intLen = this.intLen
+
+        // Normalize the divisor
+        val shift = Integers.numberOfLeadingZeros(divisor)
+
+        var rem = this.value[this.offset]
+        var remLong = rem.toLong() and LONG_MASK
+        if (remLong < divisorLong) {
+            quotient.value[0] = 0
+        } else {
+            quotient.value[0] = (remLong / divisorLong).toInt()
+            rem = (remLong - quotient.value[0] * divisorLong).toInt()
+            remLong = rem.toLong() and LONG_MASK
+        }
+        var xlen = this.intLen
+        while (--xlen > 0) {
+            val dividendEstimate = remLong shl 32 or
+                    (this.value[this.offset + this.intLen - xlen].toLong() and LONG_MASK)
+            val q: Int
+            if (dividendEstimate >= 0) {
+                q = (dividendEstimate / divisorLong).toInt()
+                rem = (dividendEstimate - q * divisorLong).toInt()
+            } else {
+                val tmp = divWord(dividendEstimate, divisor)
+                q = (tmp and LONG_MASK).toInt()
+                rem = tmp.ushr(32).toInt()
+            }
+            quotient.value[intLen - xlen] = q
+            remLong = rem.toLong() and LONG_MASK
+        }
+
+        quotient.normalize()
+        // Unnormalize
+        return if (shift > 0) rem % divisor else rem
+    }
+
+    /**
+     * This method divides a long quantity by an int to estimate
+     * qhat for two multi precision numbers. It is used when
+     * the signed value of n is less than zero.
+     * Returns long value where high 32 bits contain remainder value and
+     * low 32 bits contain quotient value.
+     */
+    private fun divWord(n: Long, d: Int): Long {
+        val dLong = d.toLong() and LONG_MASK
+        var r: Long
+        var q: Long
+        if (dLong == 1L) {
+            q = n.toInt().toLong()
+            r = 0
+            return r shl 32 or (q and LONG_MASK)
+        }
+
+        // Approximate the quotient and remainder
+        q = n.ushr(1) / dLong.ushr(1)
+        r = n - q * dLong
+
+        // Correct the approximation
+        while (r < 0) {
+            r += dLong
+            q -= 1
+        }
+        while (r >= dLong) {
+            r -= dLong
+            q += 1
+        }
+        // n - q*dlong == r && 0 <= r <dLong, hence we're done.
+        return r shl 32 or (q and LONG_MASK)
+    }
+
+    /**
+     * Returns a `BigInteger` equal to the `n`
+     * low ints of this number.
+     */
+    private fun getLower(n: Int): BigInteger {
+        return if (isZero()) {
+            BigInteger.ZERO
+        } else if (this.intLen < n) {
+            toBigInteger(1)
+        } else {
+            // strip zeros
+            var len = n
+            while (len > 0 && this.value[this.offset + this.intLen - len] == 0) {
+                len -= 1
+            }
+            val sign = if (len > 0) 1 else 0
+            BigInteger(this.value.copyOfRange(this.offset + this.intLen - len,
+                    this.offset + this.intLen), sign)
+        }
+    }
+
+    /**
+     * Returns a `MutableBigInteger` containing `blockLength` ints from
+     * `this` number, starting at `index*blockLength`.<br></br>
+     * Used by Burnikel-Ziegler division.
+     * @param index the block index
+     * @param numBlocks the total number of blocks in `this` number
+     * @param blockLength length of one block in units of 32 bits
+     * @return
+     */
+    private fun getBlock(index: Int, numBlocks: Int, blockLength: Int): MutableBigInteger {
+        val blockStart = index * blockLength
+        if (blockStart >= intLen) {
+            return MutableBigInteger()
+        }
+
+        val blockEnd: Int = if (index == numBlocks - 1) {
+            intLen
+        } else {
+            (index + 1) * blockLength
+        }
+        if (blockEnd > intLen) {
+            return MutableBigInteger()
+        }
+
+        val newVal = this.value.copyOfRange(this.offset + this.intLen - blockEnd,
+                this.offset + this.intLen - blockStart)
+        return MutableBigInteger(newVal)
+    }
+
+    /**
+     * @see BigInteger.bitLength
+     */
+    private fun bitLength(): Long {
+        return if (this.intLen == 0) 0 else
+            this.intLen * 32L - Integers.numberOfLeadingZeros(this.value[this.offset])
     }
 
     /**
@@ -923,4 +1608,6 @@ internal open class MutableBigInteger private constructor(
         a.normalize()
         add(a)
     }
+
+
 }

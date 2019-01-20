@@ -125,7 +125,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      *
      * @serial
      */
-    private var signum: Int = 0
+    internal var signum: Int = 0
 
     /**
      * The magnitude of this BigInteger, in <i>big-endian</i> order: the
@@ -739,7 +739,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * Returns the input array stripped of any leading zero bytes.
          * Since the source is trusted the copying may be skipped.
          */
-        private fun trustedStripLeadingZeroInts(value: IntArray): IntArray {
+        internal fun trustedStripLeadingZeroInts(value: IntArray): IntArray {
             val vlen = value.size
 
             // Find first nonzero byte
@@ -853,7 +853,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             }
 
             return result
-        }
+        } // private fun makePositive(a: ByteArray): IntArray
 
         /**
          * Takes an array a representing a negative 2's-complement number and
@@ -887,7 +887,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             }
 
             return result
-        }
+        } // private fun makePositive(a: IntArray): IntArray
 
         // Multiply x array times word y in place, and add word z
         private fun destructiveMulAdd(x: IntArray, y: Int, z: Int) {
@@ -928,6 +928,43 @@ class BigInteger: Number, Comparable<BigInteger> {
                 randomBits[0] = (randomBits[0].toInt() and ((1 shl 8 - excessBits) - 1)).toByte()
             }
             return randomBits
+        }
+
+        /**
+         * Returns a magnitude array whose value is `(mag << n)`.
+         * The shift distance, `n`, is considered unnsigned.
+         * (Computes <tt>this * 2<sup>n</sup></tt>.)
+         *
+         * @param mag magnitude, the most-significant int (`mag[0]`) must be non-zero.
+         * @param  n unsigned shift distance, in bits.
+         * @return `mag << n`
+         */
+        private fun shiftLeft(mag: IntArray, n: Int): IntArray {
+            val nInts = n.ushr(5)
+            val nBits = n and 0x1f
+            val magLen = mag.size
+            val newMag: IntArray?
+
+            if (nBits == 0) {
+                newMag = IntArray(magLen + nInts)
+                mag.copyInto(newMag, 0, 0, magLen)
+            } else {
+                var i = 0
+                val nBits2 = 32 - nBits
+                val highBits = mag[0].ushr(nBits2)
+                if (highBits != 0) {
+                    newMag = IntArray(magLen + nInts + 1)
+                    newMag[i++] = highBits
+                } else {
+                    newMag = IntArray(magLen + nInts)
+                }
+                var j = 0
+                while (j < magLen - 1) {
+                    newMag[i++] = mag[j++] shl nBits or mag[j].ushr(nBits2)
+                }
+                newMag[i] = mag[j] shl nBits
+            }
+            return newMag
         }
 
         /**
@@ -981,7 +1018,7 @@ class BigInteger: Number, Comparable<BigInteger> {
                 return bigger
             }
             return result
-        }
+        } // private fun add(x: IntArray, value: Long): IntArray
 
         /**
          * Adds the contents of the int arrays x and y. This method allocates
@@ -1035,7 +1072,7 @@ class BigInteger: Number, Comparable<BigInteger> {
                 return bigger
             }
             return result
-        }
+        } // private fun add(x: IntArray, y: IntArray): IntArray
 
         private fun subtract(value: Long, little: IntArray): IntArray {
             val highWord = value.ushr(32).toInt()
@@ -1067,7 +1104,7 @@ class BigInteger: Number, Comparable<BigInteger> {
                     return result
                 }
             }
-        }
+        } // private fun subtract(value: Long, little: IntArray): IntArray
 
         /**
          * Subtracts the contents of the second argument (val) from the
@@ -1107,7 +1144,7 @@ class BigInteger: Number, Comparable<BigInteger> {
                 result[bigIndex] = big[bigIndex]
             }
             return result
-        }
+        } // private fun subtract(big: IntArray, value: Long): IntArray
 
         /**
          * Subtracts the contents of the second int arrays (little) from the
@@ -1142,6 +1179,87 @@ class BigInteger: Number, Comparable<BigInteger> {
                 result[bigIndex] = big[bigIndex]
             }
             return result
+        } // private fun subtract(big: IntArray, little: IntArray): IntArray
+
+        private fun multiplyByInt(x: IntArray, y: Int, sign: Int): BigInteger {
+            if (Integers.bitCount(y) == 1) {
+                return BigInteger(shiftLeft(x, Integers.numberOfTrailingZeros(y)), sign)
+            }
+            val xlen = x.size
+            var rmag = IntArray(xlen + 1)
+            var carry: Long = 0
+            val yl = y.toLong() and LONG_MASK
+            var rstart = rmag.size - 1
+            for (i in xlen - 1 downTo 0) {
+                val product = (x[i].toLong() and LONG_MASK) * yl + carry
+                rmag[rstart--] = product.toInt()
+                carry = product.ushr(32)
+            }
+            if (carry == 0L) {
+                rmag = rmag.copyOfRange(1, rmag.size)
+            } else {
+                rmag[rstart] = carry.toInt()
+            }
+            return BigInteger(rmag, sign)
+        } // private fun multiplyByInt(x: IntArray, y: Int, sign: Int): BigInteger
+
+        /**
+         * Multiplies int arrays x and y to the specified lengths and places
+         * the result into z. There will be no leading zeros in the resultant array.
+         */
+        private fun multiplyToLen(x: IntArray, xlen: Int, y: IntArray, ylen: Int, z: IntArray?): IntArray {
+            var z = z
+            val xstart = xlen - 1
+            val ystart = ylen - 1
+
+            if (z == null || z.size < xlen + ylen) {
+                z = IntArray(xlen + ylen)
+            }
+            var carry: Long = 0
+            run {
+                var j = ystart
+                var k = ystart + 1 + xstart
+                while (j >= 0) {
+                    val product = (y[j].toLong() and LONG_MASK) * (x[xstart].toLong() and LONG_MASK) + carry
+                    z[k] = product.toInt()
+                    carry = product.ushr(32)
+                    j -= 1
+                    k -= 1
+                }
+            }
+            z[xstart] = carry.toInt()
+
+            for (i in xstart - 1 downTo 0) {
+                carry = 0
+                var j = ystart
+                var k = ystart + 1 + i
+                while (j >= 0) {
+                    val product = (y[j].toLong() and LONG_MASK) * (x[i].toLong() and LONG_MASK) +
+                            (z[k].toLong() and LONG_MASK) + carry
+                    z[k] = product.toInt()
+                    carry = product.ushr(32)
+                    j -= 1
+                    k -= 1
+                }
+                z[i] = carry.toInt()
+            }
+            return z
+        } // private fun multiplyToLen(x: IntArray, xlen: Int, y: IntArray, ylen: Int, z: IntArray?): IntArray
+
+        fun javaIncrement(intArray: IntArray): IntArray {
+            var integers = intArray
+            var lastSum = 0
+            var i = integers.size - 1
+            while (i >= 0 && lastSum == 0) {
+                integers[i] += 1
+                lastSum = integers[i]
+                i -= 1
+            }
+            if (lastSum == 0) {
+                integers = IntArray(integers.size + 1)
+                integers[0] = 1
+            }
+            return integers
         }
 
         private fun reportOverflow() {
@@ -1269,6 +1387,56 @@ class BigInteger: Number, Comparable<BigInteger> {
         }
     }
 
+    // ----==== Shift Operations ====----
+
+    /**
+     * Returns a BigInteger whose value is `(this << n)`.
+     * The shift distance, `n`, may be negative, in which case
+     * this method performs a right shift.
+     * (Computes <tt>floor(this * 2<sup>n</sup>)</tt>.)
+     *
+     * @param  n shift distance, in bits.
+     * @return `this << n`
+     * @see .shiftRight
+     */
+    fun shiftLeft(n: Int): BigInteger {
+        return if (this.signum == 0) {
+            ZERO
+        } else if (n > 0) {
+            BigInteger(shiftLeft(this.mag, n), this.signum)
+        } else if (n == 0) {
+            this
+        } else {
+            // Possible int overflow in (-n) is not a trouble,
+            // because shiftRightImpl considers its argument unsigned
+            shiftRightImpl(-n)
+        }
+    }
+
+    /**
+     * Returns a BigInteger whose value is `(this >> n)`.  Sign
+     * extension is performed.  The shift distance, `n`, may be
+     * negative, in which case this method performs a left shift.
+     * (Computes <tt>floor(this / 2<sup>n</sup>)</tt>.)
+     *
+     * @param  n shift distance, in bits.
+     * @return `this >> n`
+     * @see .shiftLeft
+     */
+    fun shiftRight(n: Int): BigInteger {
+        return if (this.signum == 0) {
+            ZERO
+        } else if (n > 0) {
+            shiftRightImpl(n)
+        } else if (n == 0) {
+            this
+        } else {
+            // Possible int overflow in `-n` is not a trouble,
+            // because shiftLeft considers its argument unsigned
+            BigInteger(shiftLeft(this.mag, -n), this.signum)
+        }
+    }
+
     /**
      * Returns a BigInteger whose value is `(-this)`.
      *
@@ -1326,6 +1494,30 @@ class BigInteger: Number, Comparable<BigInteger> {
     }
 
     /**
+     * Package private methods used by BigDecimal code to add a BigInteger
+     * with a long. Assumes val is not equal to INFLATED.
+     */
+    internal fun add(value: Long): BigInteger {
+        if (value == 0L) {
+            return this
+        }
+        if (this.signum == 0) {
+            return valueOf(value)
+        }
+        if (Integers.signum(value) == this.signum) {
+            return BigInteger(add(this.mag, value.absoluteValue), this.signum)
+        }
+        val cmp = compareMagnitude(value)
+        if (cmp == 0) {
+            return ZERO
+        }
+        var resultMag = if (cmp > 0) subtract(this.mag, value.absoluteValue)
+        else subtract(value.absoluteValue, this.mag)
+        resultMag = trustedStripLeadingZeroInts(resultMag)
+        return BigInteger(resultMag, if (cmp == signum) 1 else -1)
+    }
+
+    /**
      * Returns a BigInteger whose value is `(this - val)`.
      *
      * @param  value value to be subtracted from this BigInteger.
@@ -1352,27 +1544,120 @@ class BigInteger: Number, Comparable<BigInteger> {
     }
 
     /**
-     * Package private methods used by BigDecimal code to add a BigInteger
-     * with a long. Assumes val is not equal to INFLATED.
+     * Returns a BigInteger whose value is `(this * val)`.
+     *
+     * @param  value value to be multiplied by this BigInteger.
+     * @return `this * value`
      */
-    internal fun add(value: Long): BigInteger {
-        if (value == 0L) {
-            return this
-        }
-        if (this.signum == 0) {
-            return valueOf(value)
-        }
-        if (Integers.signum(value) == this.signum) {
-            return BigInteger(add(this.mag, value.absoluteValue), this.signum)
-        }
-        val cmp = compareMagnitude(value)
-        if (cmp == 0) {
+    fun multiply(value: BigInteger): BigInteger {
+        if (value.signum == 0 || this.signum == 0) {
             return ZERO
         }
-        var resultMag = if (cmp > 0) subtract(this.mag, value.absoluteValue)
-                else subtract(value.absoluteValue, this.mag)
-        resultMag = trustedStripLeadingZeroInts(resultMag)
-        return BigInteger(resultMag, if (cmp == signum) 1 else -1)
+        val xlen = mag.size
+        val ylen = value.mag.size
+
+        if (xlen < AlgorithmUtils.KARATSUBA_THRESHOLD || ylen < AlgorithmUtils.KARATSUBA_THRESHOLD) {
+            val resultSign = if (this.signum == value.signum) 1 else -1
+            if (value.mag.size == 1) {
+                return multiplyByInt(mag, value.mag[0], resultSign)
+            }
+            if (mag.size == 1) {
+                return multiplyByInt(value.mag, mag[0], resultSign)
+            }
+            var result = multiplyToLen(mag, xlen,
+                    value.mag, ylen, null)
+            result = trustedStripLeadingZeroInts(result)
+            return BigInteger(result, resultSign)
+        } else {
+            return if (xlen < AlgorithmUtils.TOOM_COOK_THRESHOLD && ylen < AlgorithmUtils.TOOM_COOK_THRESHOLD) {
+                AlgorithmUtils.multiplyKaratsuba(this, value)
+            } else {
+                AlgorithmUtils.multiplyToomCook3(this, value)
+            }
+        }
+    }
+
+    /**
+     * Package private methods used by BigDecimal code to multiply a BigInteger
+     * with a long. Assumes v is not equal to INFLATED.
+     */
+    internal fun multiply(v: Long): BigInteger {
+        var v = v
+        if (v == 0L || signum == 0) {
+            return ZERO
+        }
+        if (v == BigDecimal.INFLATED) {
+            return multiply(BigInteger.valueOf(v))
+        }
+        val rsign = if (v > 0) signum else -signum
+        if (v < 0) {
+            v = -v
+        }
+        val dh = v.ushr(32)      // higher order bits
+        val dl = v and LONG_MASK // lower order bits
+
+        val xlen = this.mag.size
+        val value = this.mag
+        var rmag = if (dh == 0L) IntArray(xlen + 1) else IntArray(xlen + 2)
+        var carry: Long = 0
+        var rstart = rmag.size - 1
+        for (i in xlen - 1 downTo 0) {
+            val product = (value[i].toLong() and LONG_MASK) * dl + carry
+            rmag[rstart--] = product.toInt()
+            carry = product.ushr(32)
+        }
+        rmag[rstart] = carry.toInt()
+        if (dh != 0L) {
+            carry = 0
+            rstart = rmag.size - 2
+            for (i in xlen - 1 downTo 0) {
+                val product = (value[i].toLong() and LONG_MASK) * dh +
+                        (rmag[rstart].toLong() and LONG_MASK) + carry
+                rmag[rstart--] = product.toInt()
+                carry = product.ushr(32)
+            }
+            rmag[0] = carry.toInt()
+        }
+        if (carry == 0L) {
+            rmag = rmag.copyOfRange(1, rmag.size)
+        }
+        return BigInteger(rmag, rsign)
+    }
+
+    /**
+     * Returns a BigInteger whose value is `(this / val)`.
+     *
+     * @param  `val` value by which this BigInteger is to be divided.
+     * @return `this / val`
+     * @throws ArithmeticException if `val` is zero.
+     */
+    fun divide(divisor: BigInteger): BigInteger {
+        return if (divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD ||
+                this.mag.size - divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_OFFSET) {
+            AlgorithmUtils.divideKnuth(this, divisor)
+        } else {
+            AlgorithmUtils.divideBurnikelZiegler(this, divisor)
+        }
+    }
+
+    /**
+     * Returns an array of two BigIntegers containing `(this / divisor)`
+     * followed by `(this % divisor)`.
+     *
+     * @param  divisor value by which this BigInteger is to be divided, and the
+     * remainder computed.
+     * @return an array of two BigIntegers: the quotient `(this / divisor)`
+     * is the initial element, and the remainder `(this % divisor)`
+     * is the final element.
+     * @throws ArithmeticException if `divisor` is zero.
+     */
+    fun divideAndRemainder(divisor: BigInteger): Array<BigInteger> {
+        return if (divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD ||
+                this.mag.size - divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_OFFSET) {
+            AlgorithmUtils.divideAndRemainderKnuth(this, divisor)
+        } else {
+            AlgorithmUtils.divideAndRemainderBurnikelZiegler(this, divisor)
+        }
     }
 
     /**
@@ -1449,6 +1734,62 @@ class BigInteger: Number, Comparable<BigInteger> {
                 if (a.toLong() and LONG_MASK < b.toLong() and LONG_MASK) -1 else 1
             } else 0
         }
+    }
+
+    /**
+     * Returns a BigInteger whose value is `(this >> n)`. The shift
+     * distance, `n`, is considered unsigned.
+     * (Computes <tt>floor(this * 2<sup>-n</sup>)</tt>.)
+     *
+     * @param  n unsigned shift distance, in bits.
+     * @return `this >> n`
+     */
+    private fun shiftRightImpl(n: Int): BigInteger {
+        val nInts = n.ushr(5)
+        val nBits = n and 0x1f
+        val magLen = mag.size
+        var newMag: IntArray?
+
+        // Special case: entire contents shifted off the end
+        if (nInts >= magLen)
+            return if (signum >= 0) ZERO else negConst[1]!!
+
+        if (nBits == 0) {
+            val newMagLen = magLen - nInts
+            newMag = mag.copyOf(newMagLen)
+        } else {
+            var i = 0
+            val highBits = mag[0].ushr(nBits)
+            if (highBits != 0) {
+                newMag = IntArray(magLen - nInts)
+                newMag[i++] = highBits
+            } else {
+                newMag = IntArray(magLen - nInts - 1)
+            }
+
+            val nBits2 = 32 - nBits
+            var j = 0
+            while (j < magLen - nInts - 1)
+                newMag[i++] = mag[j++] shl nBits2 or mag[j].ushr(nBits)
+        }
+
+        if (signum < 0) {
+            // Find out whether any one-bits were shifted off the end.
+            var onesLost = false
+            var i = magLen - 1
+            val j = magLen - nInts
+            while (i >= j && !onesLost) {
+                onesLost = mag[i] !== 0
+                i--
+            }
+            if (!onesLost && nBits != 0)
+                onesLost = mag[magLen - nInts - 1] shl 32 - nBits !== 0
+
+            if (onesLost)
+                newMag = javaIncrement(newMag)
+        }
+
+        return BigInteger(newMag, signum)
     }
 
     /**
