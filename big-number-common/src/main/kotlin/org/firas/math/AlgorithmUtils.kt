@@ -97,14 +97,14 @@ internal class AlgorithmUtils private constructor() {
             val yl = getLower(y, half)
             val yh = getUpper(y, half)
 
-            val p1 = xh.multiply(yh)  // p1 = xh*yh
-            val p2 = xl.multiply(yl)  // p2 = xl*yl
+            val p1 = xh.times(yh)  // p1 = xh*yh
+            val p2 = xl.times(yl)  // p2 = xl*yl
 
             // p3=(xh+xl)*(yh+yl)
-            val p3 = xh.add(xl).multiply(yh.add(yl))
+            val p3 = xh.plus(xl).times(yh.plus(yl))
 
             // result = p1 * 2^(32*2*half) + (p3 - p1 - p2) * 2^(32*half) + p2
-            val result = p1.shiftLeft(32 * half).add(p3.subtract(p1).subtract(p2)).shiftLeft(32 * half).add(p2)
+            val result = p1.shl(32 * half).plus(p3.minus(p1).minus(p2)).shl(32 * half).plus(p2)
 
             return if (x.signum != y.signum) {
                 result.negate()
@@ -179,16 +179,16 @@ internal class AlgorithmUtils private constructor() {
             var da1: BigInteger
             var db1: BigInteger
 
-            v0 = a0.multiply(b0)
-            da1 = a2.add(a0)
-            db1 = b2.add(b0)
-            vm1 = da1.subtract(a1).multiply(db1.subtract(b1))
-            da1 = da1.add(a1)
-            db1 = db1.add(b1)
-            v1 = da1.multiply(db1)
-            v2 = da1.add(a2).shiftLeft(1).subtract(a0).multiply(
-                    db1.add(b2).shiftLeft(1).subtract(b0))
-            vinf = a2.multiply(b2)
+            v0 = a0.times(b0)
+            da1 = a2.plus(a0)
+            db1 = b2.plus(b0)
+            vm1 = da1.minus(a1).times(db1.minus(b1))
+            da1 = da1.plus(a1)
+            db1 = db1.plus(b1)
+            v1 = da1.times(db1)
+            v2 = da1.plus(a2).shl(1).minus(a0).times(
+                    db1.plus(b2).shl(1).minus(b0))
+            vinf = a2.times(b2)
 
             // The algorithm requires two divisions by 2 and one by 3.
             // All divisions are known to be exact, that is, they do not produce
@@ -196,18 +196,18 @@ internal class AlgorithmUtils private constructor() {
             // implemented as right shifts which are relatively efficient, leaving
             // only an exact division by 3, which is done by a specialized
             // linear-time algorithm.
-            t2 = exactDivideBy3(v2.subtract(vm1))
-            tm1 = v1.subtract(vm1).shiftRight(1)
-            t1 = v1.subtract(v0)
-            t2 = t2.subtract(t1).shiftRight(1)
-            t1 = t1.subtract(tm1).subtract(vinf)
-            t2 = t2.subtract(vinf.shiftLeft(1))
-            tm1 = tm1.subtract(t2)
+            t2 = exactDivideBy3(v2.minus(vm1))
+            tm1 = v1.minus(vm1).shr(1)
+            t1 = v1.minus(v0)
+            t2 = t2.minus(t1).shr(1)
+            t1 = t1.minus(tm1).minus(vinf)
+            t2 = t2.minus(vinf.shl(1))
+            tm1 = tm1.minus(t2)
 
             // Number of bits to shift left.
             val ss = k * 32
 
-            val result = vinf.shiftLeft(ss).add(t2).shiftLeft(ss).add(t1).shiftLeft(ss).add(tm1).shiftLeft(ss).add(v0)
+            val result = vinf.shl(ss).plus(t2).shl(ss).plus(t1).shl(ss).plus(tm1).shl(ss).plus(v0)
 
             return if (a.signum != b.signum) result.negate() else result
         }
@@ -366,6 +366,84 @@ internal class AlgorithmUtils private constructor() {
         }
 
         /**
+         * Multiply an array by one word k and add to result, return the carry
+         */
+        fun mulAdd(out: IntArray, inArray: IntArray, offset: Int, len: Int, k: Int): Int {
+            var offset = offset
+            val kLong = k.toLong() and BigInteger.LONG_MASK
+            var carry: Long = 0
+
+            offset = out.size - offset - 1
+            for (j in len - 1 downTo 0) {
+                val product = (inArray[j].toLong() and BigInteger.LONG_MASK) * kLong +
+                        (out[offset].toLong() and BigInteger.LONG_MASK) + carry
+                out[offset] = product.toInt()
+                offset -= 1
+                carry = product.ushr(32)
+            }
+            return carry.toInt()
+        }
+
+        /**
+         * Add one word to the number a mlen words into a. Return the resulting
+         * carry.
+         */
+        fun addOne(a: IntArray, offset: Int, mlen: Int, carry: Int): Int {
+            var offset = a.size - 1 - mlen - offset
+            var mlen = mlen
+            val t = (a[offset].toLong() and BigInteger.LONG_MASK) + (carry.toLong() and BigInteger.LONG_MASK)
+
+            a[offset] = t.toInt()
+            if (t.ushr(32) == 0L) {
+                return 0
+            }
+            while (--mlen >= 0) {
+                offset -= 1
+                if (offset < 0) { // Carry out of number
+                    return 1
+                } else {
+                    a[offset] += 1
+                    if (a[offset] != 0) {
+                        return 0
+                    }
+                }
+            }
+            return 1
+        }
+
+        // shifts a up to len right n bits assumes no leading zeros, 0<n<32
+        fun primitiveRightShift(a: IntArray, len: Int, n: Int) {
+            val n2 = 32 - n
+            var i = len - 1
+            var c = a[i]
+            while (i > 0) {
+                val b = c
+                c = a[i - 1]
+                a[i] = c shl n2 or b.ushr(n)
+                i -= 1
+            }
+            a[0] = a[0] ushr n
+        }
+
+        // shifts a up to len left n bits assumes no leading zeros, 0<=n<32
+        fun primitiveLeftShift(a: IntArray, len: Int, n: Int) {
+            if (len == 0 || n == 0) {
+                return
+            }
+            val n2 = 32 - n
+            var i = 0
+            var c = a[i]
+            val m = i + len - 1
+            while (i < m) {
+                val b = c
+                c = a[i + 1]
+                a[i] = b shl n or c.ushr(n2)
+                i += 1
+            }
+            a[len - 1] = a[len - 1] shl n
+        }
+
+        /**
          * Squares a BigInteger using the Karatsuba squaring algorithm.  It should
          * be used when both numbers are larger than a certain threshold (found
          * experimentally).  It is a recursive divide-and-conquer algorithm that
@@ -382,7 +460,7 @@ internal class AlgorithmUtils private constructor() {
             val xls = square(xl)  // xls = xl^2
 
             // xh^2 << 64  +  (((xl+xh)^2 - (xh^2 + xl^2)) << 32) + xl^2
-            return square(xhs.shiftLeft(half * 32).add(xl.add(xh)).subtract(xhs.add(xls))).shiftLeft(half * 32).add(xls)
+            return square(xhs.shl(half * 32).plus(xl.plus(xh)).minus(xhs.plus(xls))).shl(half * 32).plus(xls)
         }
 
         /**
@@ -414,12 +492,12 @@ internal class AlgorithmUtils private constructor() {
             var tm1: BigInteger
 
             val v0 = square(a0)
-            var da1 = a2.add(a0)
-            val vm1 = square(da1.subtract(a1))
-            da1 = da1.add(a1)
+            var da1 = a2.plus(a0)
+            val vm1 = square(da1.minus(a1))
+            da1 = da1.plus(a1)
             val v1 = square(da1)
             val vinf = square(a2)
-            val v2 = square(da1.add(a2).shiftLeft(1).subtract(a0))
+            val v2 = square(da1.plus(a2).shl(1).minus(a0))
 
             // The algorithm requires two divisions by 2 and one by 3.
             // All divisions are known to be exact, that is, they do not produce
@@ -427,18 +505,18 @@ internal class AlgorithmUtils private constructor() {
             // implemented as right shifts which are relatively efficient, leaving
             // only a division by 3.
             // The division by 3 is done by an optimized algorithm for this case.
-            t2 = exactDivideBy3(v2.subtract(vm1))
-            tm1 = v1.subtract(vm1).shiftRight(1)
-            t1 = v1.subtract(v0)
-            t2 = t2.subtract(t1).shiftRight(1)
-            t1 = t1.subtract(tm1).subtract(vinf)
-            t2 = t2.subtract(vinf.shiftLeft(1))
-            tm1 = tm1.subtract(t2)
+            t2 = exactDivideBy3(v2.minus(vm1))
+            tm1 = v1.minus(vm1).shr(1)
+            t1 = v1.minus(v0)
+            t2 = t2.minus(t1).shr(1)
+            t1 = t1.minus(tm1).minus(vinf)
+            t2 = t2.minus(vinf.shl(1))
+            tm1 = tm1.minus(t2)
 
             // Number of bits to shift left.
             val ss = k * 32
 
-            return vinf.shiftLeft(ss).add(t2).shiftLeft(ss).add(t1).shiftLeft(ss).add(tm1).shiftLeft(ss).add(v0)
+            return vinf.shl(ss).plus(t2).shl(ss).plus(t1).shl(ss).plus(tm1).shl(ss).plus(v0)
         }
 
         /**
@@ -538,6 +616,14 @@ internal class AlgorithmUtils private constructor() {
             return q.toBigInteger(dividend.signum * divisor.signum)
         }
 
+        internal fun remainderKnuth(dividend: BigInteger, divisor: BigInteger): BigInteger {
+            val q = MutableBigInteger()
+            val a = MutableBigInteger(dividend.mag)
+            val b = MutableBigInteger(divisor.mag)
+
+            return a.divideKnuth(b, q)!!.toBigInteger(dividend.signum)
+        }
+
         internal fun divideAndRemainderKnuth(dividend: BigInteger, divisor: BigInteger): Array<BigInteger> {
             val q = MutableBigInteger()
             val a = MutableBigInteger(dividend.mag)
@@ -563,7 +649,7 @@ internal class AlgorithmUtils private constructor() {
          * @param  divisor the divisor
          * @return `dividend % divisor`
          */
-        private fun remainderBurnikelZiegler(dividend: BigInteger, divisor: BigInteger): BigInteger {
+        internal fun remainderBurnikelZiegler(dividend: BigInteger, divisor: BigInteger): BigInteger {
             return divideAndRemainderBurnikelZiegler(dividend, divisor)[1]
         }
 
@@ -625,7 +711,7 @@ internal class AlgorithmUtils private constructor() {
                 j = -j
             }
             // And reduce u mod p
-            u = n.mod(BigInteger.valueOf(p.toLong())).intValue()
+            u = n.rem(BigInteger.valueOf(p.toLong())).toInt()
 
             // Now compute Jacobi(u,p), u < p
             while (u != 0) {
@@ -666,26 +752,26 @@ internal class AlgorithmUtils private constructor() {
             var v2: BigInteger
 
             for (i in k.bitLength() - 2 downTo 0) {
-                u2 = u.multiply(v).mod(n)
+                u2 = u.times(v).rem(n)
 
-                v2 = square(v).add(d.multiply(square(u))).mod(n)
+                v2 = square(v).plus(d.times(square(u))).rem(n)
                 if (v2.testBit(0))
-                    v2 = v2.subtract(n)
+                    v2 = v2.minus(n)
 
-                v2 = v2.shiftRight(1)
+                v2 = v2.shr(1)
 
                 u = u2
                 v = v2
                 if (k.testBit(i)) {
-                    u2 = u.add(v).mod(n)
+                    u2 = u.plus(v).rem(n)
                     if (u2.testBit(0))
-                        u2 = u2.subtract(n)
+                        u2 = u2.minus(n)
 
-                    u2 = u2.shiftRight(1)
-                    v2 = v.add(d.multiply(u)).mod(n)
+                    u2 = u2.shr(1)
+                    v2 = v.plus(d.times(u)).rem(n)
                     if (v2.testBit(0))
-                        v2 = v2.subtract(n)
-                    v2 = v2.shiftRight(1)
+                        v2 = v2.minus(n)
+                    v2 = v2.shr(1)
 
                     u = u2
                     v = v2

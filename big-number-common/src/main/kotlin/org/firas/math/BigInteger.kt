@@ -420,7 +420,7 @@ class BigInteger: Number, Comparable<BigInteger> {
     private constructor(magnitude: ByteArray, signum: Int) {
         this.signum = if (magnitude.size == 0) 0 else signum
         this.mag = stripLeadingZeroBytes(magnitude)
-        if (mag.size >= MAX_MAG_LENGTH) {
+        if (this.mag.size >= MAX_MAG_LENGTH) {
             checkRange()
         }
     }
@@ -428,8 +428,8 @@ class BigInteger: Number, Comparable<BigInteger> {
     /**
      * Constructs a BigInteger with the specified value, which may not be zero.
      */
-    private constructor(value: Long) {
-        var value = value
+    private constructor(longValue: Long) {
+        var value = longValue
         if (value < 0) {
             value = -value
             this.signum = -1
@@ -728,7 +728,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             val vlen = value.size
 
             // Find first nonzero byte
-            var keep: Int = 0
+            var keep = 0
             while (keep < vlen && value[keep] == 0) {
                 keep += 1
             }
@@ -743,7 +743,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             val vlen = value.size
 
             // Find first nonzero byte
-            var keep: Int = 0
+            var keep = 0
             while (keep < vlen && value[keep] == 0) {
                 keep += 1
             }
@@ -757,7 +757,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             val byteLength = a.size
 
             // Find first nonzero byte
-            var keep: Int = 0
+            var keep = 0
             while (keep < byteLength && a[keep].toInt() == 0) {
                 keep += 1
             }
@@ -808,11 +808,10 @@ class BigInteger: Number, Comparable<BigInteger> {
             val byteLength = a.size
 
             // Find first non-sign (0xff) byte of input
-            var keep: Int = 0
+            var keep = 0
             while (keep < byteLength && a[keep].toInt() == -1) {
                 keep += 1
             }
-
 
             /* Allocate output array.  If all non-sign bytes are 0x00, we must
              * allocate space for one extra output byte. */
@@ -1025,9 +1024,9 @@ class BigInteger: Number, Comparable<BigInteger> {
          * a new int array to hold the answer and returns a reference to that
          * array.
          */
-        private fun add(x: IntArray, y: IntArray): IntArray {
-            var x = x
-            var y = y
+        private fun add(xArray: IntArray, yArray: IntArray): IntArray {
+            var x = xArray
+            var y = yArray
             // If x is shorter, swap the two arrays
             if (x.size < y.size) {
                 val tmp = x
@@ -1040,13 +1039,16 @@ class BigInteger: Number, Comparable<BigInteger> {
             val result = IntArray(xIndex)
             var sum: Long = 0
             if (yIndex == 1) {
-                sum = (x[--xIndex].toLong() and LONG_MASK) + (y[0].toLong() and LONG_MASK)
+                xIndex -= 1
+                sum = (x[xIndex].toLong() and LONG_MASK) + (y[0].toLong() and LONG_MASK)
                 result[xIndex] = sum.toInt()
             } else {
                 // Add common parts of both numbers
                 while (yIndex > 0) {
-                    sum = (x[--xIndex].toLong() and LONG_MASK) +
-                            (y[--yIndex].toLong() and LONG_MASK) + sum.ushr(32)
+                    xIndex -= 1
+                    yIndex -= 1
+                    sum = (x[xIndex].toLong() and LONG_MASK) +
+                            (y[yIndex].toLong() and LONG_MASK) + sum.ushr(32)
                     result[xIndex] = sum.toInt()
                 }
             }
@@ -1093,7 +1095,6 @@ class BigInteger: Number, Comparable<BigInteger> {
                     } else {        // Copy remainder of longer number
                         result[0] = highWord
                     }
-                    return result
                 } else { // little.length == 2
                     var difference = (value.toInt().toLong() and LONG_MASK) -
                             (little[1].toLong() and LONG_MASK)
@@ -1101,8 +1102,8 @@ class BigInteger: Number, Comparable<BigInteger> {
                     difference = (highWord.toLong() and LONG_MASK) -
                             (little[0].toLong() and LONG_MASK) + (difference shr 32)
                     result[0] = difference.toInt()
-                    return result
                 }
+                return result
             }
         } // private fun subtract(value: Long, little: IntArray): IntArray
 
@@ -1123,9 +1124,11 @@ class BigInteger: Number, Comparable<BigInteger> {
                 difference = (big[--bigIndex].toLong() and LONG_MASK) - value
                 result[bigIndex] = difference.toInt()
             } else {
-                difference = (big[--bigIndex].toLong() and LONG_MASK) - (value and LONG_MASK)
+                bigIndex -= 1
+                difference = (big[bigIndex].toLong() and LONG_MASK) - (value and LONG_MASK)
                 result[bigIndex] = difference.toInt()
-                difference = (big[--bigIndex].toLong() and LONG_MASK) -
+                bigIndex -= 1
+                difference = (big[bigIndex].toLong() and LONG_MASK) -
                         (highWord.toLong() and LONG_MASK) + (difference shr 32)
                 result[bigIndex] = difference.toInt()
             }
@@ -1160,8 +1163,10 @@ class BigInteger: Number, Comparable<BigInteger> {
 
             // Subtract common parts of both numbers
             while (littleIndex > 0) {
-                difference = (big[--bigIndex].toLong() and LONG_MASK) -
-                        (little[--littleIndex].toLong() and LONG_MASK) + (difference shr 32)
+                bigIndex -= 1
+                littleIndex -= 1
+                difference = (big[bigIndex].toLong() and LONG_MASK) -
+                        (little[littleIndex].toLong() and LONG_MASK) + (difference shr 32)
                 result[bigIndex] = difference.toInt()
             }
 
@@ -1192,7 +1197,8 @@ class BigInteger: Number, Comparable<BigInteger> {
             var rstart = rmag.size - 1
             for (i in xlen - 1 downTo 0) {
                 val product = (x[i].toLong() and LONG_MASK) * yl + carry
-                rmag[rstart--] = product.toInt()
+                rmag[rstart] = product.toInt()
+                rstart -= 1
                 carry = product.ushr(32)
             }
             if (carry == 0L) {
@@ -1481,11 +1487,13 @@ class BigInteger: Number, Comparable<BigInteger> {
      * this method performs a right shift.
      * (Computes <tt>floor(this * 2<sup>n</sup>)</tt>.)
      *
+     * Rename from `shiftLeft` to `shl` to accord with `Int.shl` in Kotlin
+     *
      * @param  n shift distance, in bits.
      * @return `this << n`
      * @see .shiftRight
      */
-    fun shiftLeft(n: Int): BigInteger {
+    fun shl(n: Int): BigInteger {
         return if (this.signum == 0) {
             ZERO
         } else if (n > 0) {
@@ -1505,11 +1513,13 @@ class BigInteger: Number, Comparable<BigInteger> {
      * negative, in which case this method performs a left shift.
      * (Computes <tt>floor(this / 2<sup>n</sup>)</tt>.)
      *
+     * Rename from `shiftRight` to `shr` to accord with `Int.shr` in Kotlin
+     *
      * @param  n shift distance, in bits.
      * @return `this >> n`
      * @see .shiftLeft
      */
-    fun shiftRight(n: Int): BigInteger {
+    fun shr(n: Int): BigInteger {
         return if (this.signum == 0) {
             ZERO
         } else if (n > 0) {
@@ -1553,12 +1563,13 @@ class BigInteger: Number, Comparable<BigInteger> {
     }
 
     /**
-     * Returns a BigInteger whose value is `(this + val)`.
+     * Returns a BigInteger whose value is `(this + addend)`.
+     * Rename from `add` to `plus` to accord with `Int.plus` in Kotlin
      *
      * @param  addend value to be added to this BigInteger.
-     * @return `this + val`
+     * @return `this + addend`
      */
-    fun add(addend: BigInteger): BigInteger {
+    operator fun plus(addend: BigInteger): BigInteger {
         if (addend.signum == 0) {
             return this
         }
@@ -1605,11 +1616,12 @@ class BigInteger: Number, Comparable<BigInteger> {
 
     /**
      * Returns a BigInteger whose value is `(this - val)`.
+     * Rename from `subtract` to `minus` to accord with `Int.minus` in Kotlin
      *
      * @param  value value to be subtracted from this BigInteger.
      * @return `this - val`
      */
-    fun subtract(value: BigInteger): BigInteger {
+    operator fun minus(value: BigInteger): BigInteger {
         if (value.signum == 0) {
             return this
         }
@@ -1631,11 +1643,12 @@ class BigInteger: Number, Comparable<BigInteger> {
 
     /**
      * Returns a BigInteger whose value is `(this * val)`.
+     * Rename from `multiply` to `times` to accord with `Int.times` in Kotlin
      *
      * @param  value value to be multiplied by this BigInteger.
      * @return `this * value`
      */
-    fun multiply(value: BigInteger): BigInteger {
+    operator fun times(value: BigInteger): BigInteger {
         if (value.signum == 0 || this.signum == 0) {
             return ZERO
         }
@@ -1673,7 +1686,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             return ZERO
         }
         if (v == BigDecimal.INFLATED) {
-            return multiply(BigInteger.valueOf(v))
+            return times(BigInteger.valueOf(v))
         }
         val rsign = if (v > 0) signum else -signum
         if (v < 0) {
@@ -1711,13 +1724,14 @@ class BigInteger: Number, Comparable<BigInteger> {
     }
 
     /**
-     * Returns a BigInteger whose value is `(this / val)`.
+     * Returns a BigInteger whose value is `(this / divisor)`.
+     * Rename from `divide` to `div` to accord with `Int.div` in Kotlin
      *
-     * @param  `val` value by which this BigInteger is to be divided.
-     * @return `this / val`
-     * @throws ArithmeticException if `val` is zero.
+     * @param  `divisor` value by which this BigInteger is to be divided.
+     * @return `this / divisor`
+     * @throws ArithmeticException if `divisor` is zero.
      */
-    fun divide(divisor: BigInteger): BigInteger {
+    operator fun div(divisor: BigInteger): BigInteger {
         return if (divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD ||
                 this.mag.size - divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_OFFSET) {
             AlgorithmUtils.divideKnuth(this, divisor)
@@ -1743,6 +1757,41 @@ class BigInteger: Number, Comparable<BigInteger> {
             AlgorithmUtils.divideAndRemainderKnuth(this, divisor)
         } else {
             AlgorithmUtils.divideAndRemainderBurnikelZiegler(this, divisor)
+        }
+    }
+
+    /**
+     * Returns a BigInteger whose value is `(this mod m`).  This method
+     * differs from `remainder` in that it always returns a
+     * *non-negative* BigInteger.
+     *
+     * @param  m the modulus.
+     * @return `this mod m`
+     * @throws ArithmeticException `m`  0
+     * @see .remainder
+     */
+    operator fun rem(m: BigInteger): BigInteger {
+        if (m.signum <= 0) {
+            throw ArithmeticException("BigInteger: modulus not positive")
+        }
+        val result = this.remainder(m)
+        return if (result.signum >= 0) result else result.plus(m)
+    }
+
+    /**
+     * Returns a BigInteger whose value is `(this % divisor)`.
+     *
+     * @param  divisor value by which this BigInteger is to be divided, and the
+     * remainder computed.
+     * @return `this % divisor`
+     * @throws ArithmeticException if `divisor` is zero.
+     */
+    fun remainder(divisor: BigInteger): BigInteger {
+        return if (divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD ||
+                this.mag.size - divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_OFFSET) {
+            AlgorithmUtils.remainderKnuth(this, divisor)
+        } else {
+            AlgorithmUtils.remainderBurnikelZiegler(this, divisor)
         }
     }
 

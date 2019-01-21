@@ -934,7 +934,7 @@ internal open class MutableBigInteger private constructor(
             r = a12.divide2n1n(b1, quotient)!!
 
             // step 4: d=quotient*b2
-            d = MutableBigInteger(quotient.toBigInteger().multiply(b2))
+            d = MutableBigInteger(quotient.toBigInteger().times(b2))
         } else {
             // step 3b: if a1>=b1, let quotient=beta^n-1 and r=a12-b1*2^n+b1
             quotient.ones(n)
