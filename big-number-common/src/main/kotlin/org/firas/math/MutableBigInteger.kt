@@ -149,7 +149,7 @@ internal open class MutableBigInteger private constructor(
         /**
          * Returns the multiplicative inverse of val mod 2^32.  Assumes val is odd.
          */
-        fun inverseMod32(value: Int): Int {
+        internal fun inverseMod32(value: Int): Int {
             // Newton's iteration!
             var t = value
             t *= 2 - value * t
@@ -162,9 +162,41 @@ internal open class MutableBigInteger private constructor(
         /**
          * Calculate the multiplicative inverse of 2^k mod mod, where mod is odd.
          */
-        fun modInverseBP2(mod: MutableBigInteger, k: Int): MutableBigInteger {
+        internal fun modInverseBP2(mod: MutableBigInteger, k: Int): MutableBigInteger {
             // Copy the mod to protect original
             return fixup(MutableBigInteger(1), MutableBigInteger(mod), k)
+        }
+
+        /**
+         * Calculate GCD of a and b interpreted as unsigned integers.
+         */
+        internal fun binaryGcd(a: Int, b: Int): Int {
+            var a = a
+            var b = b
+            if (b == 0) {
+                return a
+            }
+            if (a == 0) {
+                return b
+            }
+            // Right shift a & b till their last bits equal to 1.
+            val aZeros = Integers.numberOfTrailingZeros(a)
+            val bZeros = Integers.numberOfTrailingZeros(b)
+            a = a ushr aZeros
+            b = b ushr bZeros
+
+            val t = if (aZeros < bZeros) aZeros else bZeros
+
+            while (a != b) {
+                if (a + -0x80000000 > b + -0x80000000) {  // a > b as unsigned
+                    a -= b
+                    a = a ushr Integers.numberOfTrailingZeros(a)
+                } else {
+                    b -= a
+                    b = b ushr Integers.numberOfTrailingZeros(b)
+                }
+            }
+            return a shl t
         }
 
         /**
@@ -172,7 +204,7 @@ internal open class MutableBigInteger private constructor(
          * Calculates X such that X = C * 2^(-k) (mod P)
          * Assumes C<P and P is odd.
          */
-        fun fixup(c: MutableBigInteger, p: MutableBigInteger,
+        internal fun fixup(c: MutableBigInteger, p: MutableBigInteger,
                   k: Int): MutableBigInteger {
             val temp = MutableBigInteger()
             // Set r to the multiplicative inverse of p mod 2^32
@@ -842,7 +874,7 @@ internal open class MutableBigInteger private constructor(
      * Multiply the contents of this MutableBigInteger by the word y. The
      * result is placed into z.
      */
-    fun mul(y: Int, z: MutableBigInteger) {
+    internal fun mul(y: Int, z: MutableBigInteger) {
         if (y == 1) {
             z.copyValue(this)
             return
@@ -1076,7 +1108,7 @@ internal open class MutableBigInteger private constructor(
         // step 5: let quotient=[q1,quotient] and return r2
         quotient.addDisjoint(q1, n / 2)
         return r2
-    }
+    } // private fun divide2n1n(b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger?
 
     /**
      * This method implements algorithm 2 from pg. 5 of the Burnikel-Ziegler paper.
@@ -1134,7 +1166,7 @@ internal open class MutableBigInteger private constructor(
         r.subtract(d)
 
         return r
-    }
+    } // private fun divide3n2n(b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger
 
     /**
      * Divide this MutableBigInteger by the divisor.
@@ -1314,7 +1346,6 @@ internal open class MutableBigInteger private constructor(
                 }
             }
 
-
             // D4 Multiply and subtract
             val borrow: Int
             rem.value[limit - 1 + rem.offset] = 0
@@ -1345,7 +1376,7 @@ internal open class MutableBigInteger private constructor(
         }
         quotient.normalize()
         return if (needRemainder) rem else null
-    }
+    } // private fun divideMagnitude
 
     /**
      * This method is used for division of an n word dividend by a one word
@@ -1446,7 +1477,7 @@ internal open class MutableBigInteger private constructor(
      * Returns the modInverse of this mod p. This and p are not affected by
      * the operation.
      */
-    fun mutableModInverse(p: MutableBigInteger): MutableBigInteger {
+    internal fun mutableModInverse(p: MutableBigInteger): MutableBigInteger {
         // Modulus is odd, use Schroeppel's algorithm
         if (p.isOdd()) {
             return modInverse(p)
@@ -1584,6 +1615,87 @@ internal open class MutableBigInteger private constructor(
         result.intLen = 2
         result.normalize()
         return result
+    }
+
+    /**
+     * Calculate GCD of this and b. This and b are changed by the computation.
+     */
+    internal fun hybridGCD(b: MutableBigInteger): MutableBigInteger {
+        var b = b
+        // Use Euclid's algorithm until the numbers are approximately the
+        // same length, then use the binary GCD algorithm to find the GCD.
+        var a = this
+        val q = MutableBigInteger()
+
+        while (b.intLen != 0) {
+            if (kotlin.math.abs(a.intLen - b.intLen) < 2)
+                return a.binaryGCD(b)
+
+            val r = a.divide(b, q)
+            a = b
+            b = r
+        }
+        return a
+    }
+
+    /**
+     * Calculate GCD of this and v.
+     * Assumes that this and v are not zero.
+     */
+    private fun binaryGCD(v: MutableBigInteger): MutableBigInteger {
+        var other = v
+        // Algorithm B from Knuth section 4.5.2
+        var u = this
+        val r = MutableBigInteger()
+
+        // step B1
+        val s1 = u.getLowestSetBit()
+        val s2 = other.getLowestSetBit()
+        val k = if (s1 < s2) s1 else s2
+        if (k != 0) {
+            u.rightShift(k)
+            other.rightShift(k)
+        }
+
+        // step B2
+        val uOdd = k == s1
+        var t = if (uOdd) other else u
+        var tsign = if (uOdd) -1 else 1
+
+        val lb: Int = t.getLowestSetBit()
+        while (lb >= 0) {
+            // steps B3 and B4
+            t.rightShift(lb)
+            // step B5
+            if (tsign > 0) {
+                u = t
+            } else {
+                other = t
+            }
+            // Special case one word numbers
+            if (u.intLen < 2 && other.intLen < 2) {
+                var x = u.value[u.offset]
+                val y = other.value[other.offset]
+                x = binaryGcd(x, y)
+                r.value[0] = x
+                r.intLen = 1
+                r.offset = 0
+                if (k > 0)
+                    r.leftShift(k)
+                return r
+            }
+
+            // step B6
+            tsign = u.difference(other)
+            if (tsign == 0) {
+                break
+            }
+            t = if (tsign >= 0) u else other
+        }
+
+        if (k > 0)
+            u.leftShift(k)
+        return u
     }
 
     /**
@@ -1842,7 +1954,7 @@ internal open class MutableBigInteger private constructor(
      * is placed within this MutableBigInteger.
      * The contents of the addend are not changed.
      */
-    fun add(addend: MutableBigInteger) {
+    internal fun add(addend: MutableBigInteger) {
         var x = this.intLen
         var y = addend.intLen
         var resultLen = if (this.intLen > addend.intLen) this.intLen else addend.intLen
@@ -1903,7 +2015,7 @@ internal open class MutableBigInteger private constructor(
      * Has the same effect as `addend.leftShift(32*ints); add(addend);`
      * but doesn't change the value of `addend`.
      */
-    fun addShifted(addend: MutableBigInteger, n: Int) {
+    internal fun addShifted(addend: MutableBigInteger, n: Int) {
         if (addend.isZero()) {
             return
         }
@@ -1970,7 +2082,7 @@ internal open class MutableBigInteger private constructor(
      * not be greater than `n`. In other words, concatenates `this`
      * and `addend`.
      */
-    fun addDisjoint(addend: MutableBigInteger, n: Int) {
+    internal fun addDisjoint(addend: MutableBigInteger, n: Int) {
         if (addend.isZero()) {
             return
         }

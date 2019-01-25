@@ -1940,6 +1940,28 @@ class BigInteger: Number, Comparable<BigInteger> {
     }
 
     /**
+     * Returns a BigInteger whose value is the greatest common divisor of
+     * `abs(this)` and `abs(val)`.  Returns 0 if
+     * `this == 0 && val == 0`.
+     *
+     * @param  `val` value with which the GCD is to be computed.
+     * @return `GCD(abs(this), abs(val))`
+     */
+    fun gcd(other: BigInteger): BigInteger {
+        if (other.signum == 0) {
+            return this.abs()
+        } else if (this.signum == 0) {
+            return other.abs()
+        }
+        val a = MutableBigInteger(this)
+        val b = MutableBigInteger(other)
+
+        val result = a.hybridGCD(b)
+
+        return result.toBigInteger(1)
+    }
+
+    /**
      * Returns a BigInteger whose value is
      * <tt>(this<sup>exponent</sup> mod m)</tt>.  (Unlike `pow`, this
      * method permits negative exponents.)
