@@ -97,14 +97,13 @@ internal class AlgorithmUtils private constructor() {
             val yl = getLower(y, half)
             val yh = getUpper(y, half)
 
-            val p1 = xh.times(yh)  // p1 = xh*yh
-            val p2 = xl.times(yl)  // p2 = xl*yl
+            val p1 = xh * yh  // p1 = xh*yh
+            val p2 = xl * yl  // p2 = xl*yl
 
-            // p3=(xh+xl)*(yh+yl)
-            val p3 = xh.plus(xl).times(yh.plus(yl))
+            val p3 = (xh + xl) * (yh + yl)
 
             // result = p1 * 2^(32*2*half) + (p3 - p1 - p2) * 2^(32*half) + p2
-            val result = p1.shl(32 * half).plus(p3.minus(p1).minus(p2)).shl(32 * half).plus(p2)
+            val result = p1.shl(32 * half) + (p3 - p1 - p2).shl(32 * half) + p2
 
             return if (x.signum != y.signum) {
                 result.negate()
@@ -179,16 +178,16 @@ internal class AlgorithmUtils private constructor() {
             var da1: BigInteger
             var db1: BigInteger
 
-            v0 = a0.times(b0)
-            da1 = a2.plus(a0)
-            db1 = b2.plus(b0)
-            vm1 = da1.minus(a1).times(db1.minus(b1))
-            da1 = da1.plus(a1)
-            db1 = db1.plus(b1)
-            v1 = da1.times(db1)
+            v0 = a0 * b0
+            da1 = a2 + a0
+            db1 = b2 + b0
+            vm1 = (da1 - a1) * (db1 - b1)
+            da1 += a1
+            db1 += b1
+            v1 = da1 * db1
             v2 = da1.plus(a2).shl(1).minus(a0).times(
                     db1.plus(b2).shl(1).minus(b0))
-            vinf = a2.times(b2)
+            vinf = a2 * b2
 
             // The algorithm requires two divisions by 2 and one by 3.
             // All divisions are known to be exact, that is, they do not produce
@@ -272,7 +271,7 @@ internal class AlgorithmUtils private constructor() {
          *
          * @return `this<sup>2</sup>`
          */
-        private fun square(value: BigInteger): BigInteger {
+        internal fun square(value: BigInteger): BigInteger {
             if (value.signum == 0) {
                 return BigInteger.ZERO
             }
@@ -294,7 +293,7 @@ internal class AlgorithmUtils private constructor() {
          * Squares the contents of the int array x. The result is placed into the
          * int array z.  The contents of x are not changed.
          */
-        private fun squareToLen(x: IntArray, len: Int, z: IntArray?): IntArray {
+        internal fun squareToLen(x: IntArray, len: Int, z: IntArray?): IntArray {
             var z = z
             /*
              * The algorithm used here is adapted from Colin Plumb's C library.
@@ -368,7 +367,7 @@ internal class AlgorithmUtils private constructor() {
         /**
          * Multiply an array by one word k and add to result, return the carry
          */
-        fun mulAdd(out: IntArray, inArray: IntArray, offset: Int, len: Int, k: Int): Int {
+        internal fun mulAdd(out: IntArray, inArray: IntArray, offset: Int, len: Int, k: Int): Int {
             var offset = offset
             val kLong = k.toLong() and BigInteger.LONG_MASK
             var carry: Long = 0
@@ -412,7 +411,7 @@ internal class AlgorithmUtils private constructor() {
         }
 
         // shifts a up to len right n bits assumes no leading zeros, 0<n<32
-        fun primitiveRightShift(a: IntArray, len: Int, n: Int) {
+        internal fun primitiveRightShift(a: IntArray, len: Int, n: Int) {
             val n2 = 32 - n
             var i = len - 1
             var c = a[i]
@@ -426,7 +425,7 @@ internal class AlgorithmUtils private constructor() {
         }
 
         // shifts a up to len left n bits assumes no leading zeros, 0<=n<32
-        fun primitiveLeftShift(a: IntArray, len: Int, n: Int) {
+        internal fun primitiveLeftShift(a: IntArray, len: Int, n: Int) {
             if (len == 0 || n == 0) {
                 return
             }
@@ -441,6 +440,65 @@ internal class AlgorithmUtils private constructor() {
                 i += 1
             }
             a[len - 1] = a[len - 1] shl n
+        }
+
+        /**
+         * Montgomery reduce n, modulo mod.  This reduces modulo mod and divides
+         * by 2^(32*mlen). Adapted from Colin Plumb's C library.
+         */
+        internal fun montReduce(n: IntArray, mod: IntArray, mlen: Int, inv: Int): IntArray {
+            var c = 0
+            var len = mlen
+            var offset = 0
+
+            do {
+                val nEnd = n[n.size - 1 - offset]
+                val carry = mulAdd(n, mod, offset, mlen, inv * nEnd)
+                c += addOne(n, offset, mlen, carry)
+                offset += 1
+            } while (--len > 0)
+
+            while (c > 0) {
+                c += subN(n, mod, mlen)
+            }
+            while (intArrayCmpToLen(n, mod, mlen) >= 0) {
+                subN(n, mod, mlen)
+            }
+            return n
+        }
+
+        /*
+         * Returns -1, 0 or +1 as big-endian unsigned int array arg1 is less than,
+         * equal to, or greater than arg2 up to length len.
+         */
+        private fun intArrayCmpToLen(arg1: IntArray, arg2: IntArray, len: Int): Int {
+            for (i in 0 until len) {
+                val b1 = arg1[i].toLong() and BigInteger.LONG_MASK
+                val b2 = arg2[i].toLong() and BigInteger.LONG_MASK
+                if (b1 < b2) {
+                    return -1
+                }
+                if (b1 > b2) {
+                    return 1
+                }
+            }
+            return 0
+        }
+
+        /**
+         * Subtracts two numbers of same length, returning borrow.
+         */
+        private fun subN(a: IntArray, b: IntArray, length: Int): Int {
+            var len = length
+            var sum: Long = 0
+
+            while (--len >= 0) {
+                sum = (a[len].toLong() and BigInteger.LONG_MASK) -
+                        (b[len].toLong() and BigInteger.LONG_MASK) + (sum shr 32)
+                a[len] = sum.toInt()
+            }
+
+            return (sum shr 32).toInt()
         }
 
         /**
@@ -671,113 +729,121 @@ internal class AlgorithmUtils private constructor() {
         }
 
         /**
-         * Computes Jacobi(p,n).
-         * Assumes n positive, odd, n>=3.
+         * Uses the extended Euclidean algorithm to compute the modInverse of base
+         * mod a modulus that is a power of 2. The modulus is 2^k.
          */
-        private fun jacobiSymbol(p: Int, n: BigInteger): Int {
-            var p = p
-            if (p == 0) {
-                return 0
-            }
-            // Algorithm and comments adapted from Colin Plumb's C library.
-            var j = 1
-            var u = n.mag[n.mag.size - 1]
+        internal fun euclidModInverse(value: MutableBigInteger, k: Int): MutableBigInteger {
+            var b = MutableBigInteger(1)
+            b.leftShift(k)
+            val mod = MutableBigInteger(b)
 
-            // Make p positive
-            if (p < 0) {
-                p = -p
-                val n8 = u and 7
-                if (n8 == 3 || n8 == 7) {
-                    j = -j // 3 (011) or 7 (111) mod 8
+            var a = MutableBigInteger(value)
+            var q = MutableBigInteger()
+            var r = b.divide(a, q)
+
+            var swapper = b
+            // swap b & r
+            b = r
+            r = swapper
+
+            val t1 = MutableBigInteger(q)
+            val t0 = MutableBigInteger(1)
+            var temp = MutableBigInteger()
+
+            while (!b.isOne()) {
+                r = a.divide(b, q)
+
+                if (r.intLen == 0) {
+                    throw ArithmeticException("BigInteger not invertible.")
+                }
+                swapper = r
+                a = swapper
+
+                if (q.intLen == 1) {
+                    t1.mul(q.value[q.offset], temp)
+                } else {
+                    q.multiply(t1, temp)
+                }
+                swapper = q
+                q = temp
+                temp = swapper
+                t0.add(q)
+
+                if (a.isOne()) {
+                    return t0
+                }
+                r = b.divide(a, q)
+
+                if (r.intLen == 0) {
+                    throw ArithmeticException("BigInteger not invertible.")
+                }
+
+                swapper = b
+                b = r
+
+                if (q.intLen == 1) {
+                    t0.mul(q.value[q.offset], temp)
+                } else {
+                    q.multiply(t0, temp)
+                }
+                swapper = q
+                q = temp
+                temp = swapper
+
+                t1.add(q)
+            }
+            mod.subtract(t1)
+            return mod
+        }
+
+        /**
+         * Returns a BigInteger whose value is (this ** exponent) mod (2**p)
+         */
+        internal fun modPow2(value: BigInteger, exponent: BigInteger, p: Int): BigInteger {
+            /*
+             * Perform exponentiation using repeated squaring trick, chopping off
+             * high order bits as indicated by modulus.
+             */
+            var result = BigInteger.ONE
+            var baseToPow2 = mod2(value, p)
+            var expOffset = 0
+
+            var limit = exponent.bitLength()
+
+            if (value.testBit(0)) {
+                limit = if (p - 1 < limit) p - 1 else limit
+            }
+            while (expOffset < limit) {
+                if (exponent.testBit(expOffset)) {
+                    result = mod2(result * baseToPow2, p)
+                }
+                expOffset += 1
+                if (expOffset < limit) {
+                    baseToPow2 = mod2(square(baseToPow2), p)
                 }
             }
 
-            // Get rid of factors of 2 in p
-            while (p and 3 == 0) {
-                p = p shr 2
+            return result
+        }
+
+        /**
+         * Returns a BigInteger whose value is this mod(2**p).
+         * Assumes that this `BigInteger >= 0` and `p > 0`.
+         */
+        private fun mod2(value: BigInteger, p: Int): BigInteger {
+            if (value.bitLength() <= p) {
+                return value
             }
-            if (p and 1 == 0) {
-                p = p shr 1
-                if (u xor (u shr 1) and 2 != 0) {
-                    j = -j // 3 (011) or 5 (101) mod 8
-                }
-            }
-            if (p == 1) {
-                return j
-            }
-            // Then, apply quadratic reciprocity
-            if (p and u and 2 != 0) {
-                // p = u = 3 (mod 4)?
-                j = -j
-            }
-            // And reduce u mod p
-            u = n.rem(BigInteger.valueOf(p.toLong())).toInt()
+            // Copy remaining ints of mag
+            val numInts = (p + 31).ushr(5)
+            val mag = IntArray(numInts)
+            value.mag.copyInto(mag, 0, value.mag.size - numInts, value.mag.size)
 
-            // Now compute Jacobi(u,p), u < p
-            while (u != 0) {
-                while (u and 3 == 0) {
-                    u = u shr 2
-                }
-                if (u and 1 == 0) {
-                    u = u shr 1
-                    if (p xor (p shr 1) and 2 != 0) {
-                        j = -j     // 3 (011) or 5 (101) mod 8
-                    }
-                }
-                if (u == 1) {
-                    return j
-                }
-                // Now both u and p are odd, so use quadratic reciprocity
-                if (!(u < p)) {
-                    throw AssertionError()
-                }
-                val t = u
-                u = p
-                p = t
-                if (u and p and 2 != 0) {
-                    // u = p = 3 (mod 4)?
-                    j = -j
-                }
-                // Now u >= p, so it can be reduced
-                u %= p
-            }
-            return 0
-        } // private fun jacobiSymbol(p: Int, n: BigInteger): Int
+            // Mask out any excess bits
+            val excessBits = (numInts shl 5) - p
+            mag[0] = mag[0] and ((1L shl 32 - excessBits) - 1).toInt()
 
-        private fun lucasLehmerSequence(z: Int, k: BigInteger, n: BigInteger): BigInteger {
-            val d = BigInteger.valueOf(z.toLong())
-            var u = BigInteger.ONE
-            var u2: BigInteger
-            var v = BigInteger.ONE
-            var v2: BigInteger
-
-            for (i in k.bitLength() - 2 downTo 0) {
-                u2 = u.times(v).rem(n)
-
-                v2 = square(v).plus(d.times(square(u))).rem(n)
-                if (v2.testBit(0))
-                    v2 = v2.minus(n)
-
-                v2 = v2.shr(1)
-
-                u = u2
-                v = v2
-                if (k.testBit(i)) {
-                    u2 = u.plus(v).rem(n)
-                    if (u2.testBit(0))
-                        u2 = u2.minus(n)
-
-                    u2 = u2.shr(1)
-                    v2 = v.plus(d.times(u)).rem(n)
-                    if (v2.testBit(0))
-                        v2 = v2.minus(n)
-                    v2 = v2.shr(1)
-
-                    u = u2
-                    v = v2
-                }
-            }
-            return u
-        } // private fun lucasLehmerSequence(z: Int, k: BigInteger, n: BigInteger): BigInteger
+            return if (mag[0] == 0) BigInteger(1, mag) else BigInteger(mag, 1)
+        }
     }
 }

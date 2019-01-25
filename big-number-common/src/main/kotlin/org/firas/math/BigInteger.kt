@@ -393,7 +393,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * arguments and copies the magnitude so this constructor would be
      * safe for external use.
      */
-    private constructor(signum: Int, magnitude: IntArray) {
+    internal constructor(signum: Int, magnitude: IntArray) {
         this.mag = stripLeadingZeroInts(magnitude)
 
         if (signum < -1 || signum > 1) {
@@ -452,21 +452,23 @@ class BigInteger: Number, Comparable<BigInteger> {
         /**
          * The BigInteger constant zero.
          *
-         * @since   1.2
+         * @since   Java 1.2
          */
         val ZERO = BigInteger(IntArray(0), 0)
 
         /**
          * The BigInteger constant one.
          *
-         * @since   1.2
+         * @since   Java 1.2
          */
         val ONE = valueOf(1)
 
         /**
-         * The BigInteger constant two.  (Not exported.)
+         * The BigInteger constant two.
+         *
+         * @since   Java 9
          */
-        private val TWO = valueOf(2)
+        val TWO = valueOf(2)
 
         /**
          * The BigInteger constant -1.  (Not exported.)
@@ -476,7 +478,7 @@ class BigInteger: Number, Comparable<BigInteger> {
         /**
          * The BigInteger constant ten.
          *
-         * @since   1.5
+         * @since   Java 1.5
          */
         val TEN = valueOf(10)
 
@@ -679,6 +681,8 @@ class BigInteger: Number, Comparable<BigInteger> {
 
         /* zero[i] is a string of i consecutive zeros. */
         private val zeros = arrayOfNulls<String>(64)
+
+        private val bnExpModThreshTable = intArrayOf(7, 25, 81, 241, 673, 1793, Int.MAX_VALUE) // Sentinel
 
         init {
             for (i in 1 .. MAX_CONSTANT) {
@@ -964,6 +968,34 @@ class BigInteger: Number, Comparable<BigInteger> {
                 newMag[i] = mag[j] shl nBits
             }
             return newMag
+        }
+
+        /**
+         * Left shift int array a up to len by n bits. Returns the array that
+         * results from the shift since space may have to be reallocated.
+         */
+        private fun leftShift(a: IntArray, len: Int, n: Int): IntArray {
+            val nInts = n.ushr(5)
+            val nBits = n and 0x1F
+            val bitsInHighWord = bitLengthForInt(a[0])
+
+            // If shift can be done without recopy, do so
+            if (n <= 32 - bitsInHighWord) {
+                AlgorithmUtils.primitiveLeftShift(a, len, nBits)
+                return a
+            } else { // Array must be resized
+                return if (nBits <= 32 - bitsInHighWord) {
+                    val result = IntArray(nInts + len)
+                    a.copyInto(result, 0, 0, len)
+                    AlgorithmUtils.primitiveLeftShift(result, result.size, nBits)
+                    result
+                } else {
+                    val result = IntArray(nInts + len + 1)
+                    a.copyInto(result, 0, 0, len)
+                    AlgorithmUtils.primitiveRightShift(result, result.size, 32 - nBits)
+                    result
+                }
+            }
         }
 
         /**
@@ -1329,11 +1361,100 @@ class BigInteger: Number, Comparable<BigInteger> {
     }
 
     override fun toDouble(): Double {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        return if (this.mag.size <= 2 && bitLength() <= 63)
+            toLong().toDouble()
+        else
+            TODO("not implemented")
     }
 
     override fun toChar(): Char {
         return toInt().toChar()
+    }
+
+    /**
+     * Converts this `BigInteger` to a `long`, checking
+     * for lost information.  If the value of this `BigInteger`
+     * is out of the range of the `long` type, then an
+     * `ArithmeticException` is thrown.
+     *
+     * @return this `BigInteger` converted to a `long`.
+     * @throws ArithmeticException if the value of `this` will
+     * not exactly fit in a `long`.
+     * @see BigInteger.longValue
+     *
+     * @since  Java 1.8
+     */
+    fun longValueExact(): Long {
+        return if (this.mag.size <= 2 && bitLength() <= 63)
+            toLong()
+        else
+            throw ArithmeticException("BigInteger out of long range")
+    }
+
+    /**
+     * Converts this `BigInteger` to an `int`, checking
+     * for lost information.  If the value of this `BigInteger`
+     * is out of the range of the `int` type, then an
+     * `ArithmeticException` is thrown.
+     *
+     * @return this `BigInteger` converted to an `int`.
+     * @throws ArithmeticException if the value of `this` will
+     * not exactly fit in an `int`.
+     * @see BigInteger.intValue
+     *
+     * @since  Java 1.8
+     */
+    fun intValueExact(): Int {
+        return if (this.mag.size <= 1 && bitLength() <= 31)
+            toInt()
+        else
+            throw ArithmeticException("BigInteger out of int range")
+    }
+
+    /**
+     * Converts this `BigInteger` to a `short`, checking
+     * for lost information.  If the value of this `BigInteger`
+     * is out of the range of the `short` type, then an
+     * `ArithmeticException` is thrown.
+     *
+     * @return this `BigInteger` converted to a `short`.
+     * @throws ArithmeticException if the value of `this` will
+     * not exactly fit in a `short`.
+     * @see BigInteger.shortValue
+     *
+     * @since  Java 1.8
+     */
+    fun shortValueExact(): Short {
+        if (this.mag.size <= 1 && bitLength() <= 31) {
+            val value = toInt()
+            if (value >= Short.MIN_VALUE && value <= Short.MAX_VALUE) {
+                return toShort()
+            }
+        }
+        throw ArithmeticException("BigInteger out of short range")
+    }
+
+    /**
+     * Converts this `BigInteger` to a `byte`, checking
+     * for lost information.  If the value of this `BigInteger`
+     * is out of the range of the `byte` type, then an
+     * `ArithmeticException` is thrown.
+     *
+     * @return this `BigInteger` converted to a `byte`.
+     * @throws ArithmeticException if the value of `this` will
+     * not exactly fit in a `byte`.
+     * @see BigInteger.byteValue
+     *
+     * @since  Java 1.8
+     */
+    fun byteValueExact(): Byte {
+        if (this.mag.size <= 1 && bitLength() <= 31) {
+            val value = toInt()
+            if (value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) {
+                return toByte()
+            }
+        }
+        throw ArithmeticException("BigInteger out of byte range")
     }
 
     /**
@@ -1478,6 +1599,29 @@ class BigInteger: Number, Comparable<BigInteger> {
         result[result.size - intNum - 1] = result[result.size - intNum - 1] xor (1 shl (n and 31))
 
         return valueOf(result)
+    }
+
+    /**
+     * Returns the index of the rightmost (lowest-order) one bit in this
+     * BigInteger (the number of zero bits to the right of the rightmost
+     * one bit).  Returns -1 if this BigInteger contains no one bits.
+     * (Computes `(this == 0? -1 : log2(this & -this))`.)
+     *
+     * @return index of the rightmost one bit in this BigInteger.
+     */
+    fun getLowestSetBit(): Int {
+        return if (this.signum == 0) {
+            -1
+        } else {
+            // Search for lowest order nonzero int
+            var i = 0
+            var b = getInt(i)
+            while (b == 0) {
+                i += 1
+                b = getInt(i)
+            }
+            (i shl 5) + Integers.numberOfTrailingZeros(b)
+        }
     }
 
     // ----==== Shift Operations ====----
@@ -1796,6 +1940,398 @@ class BigInteger: Number, Comparable<BigInteger> {
     }
 
     /**
+     * Returns a BigInteger whose value is
+     * <tt>(this<sup>exponent</sup> mod m)</tt>.  (Unlike `pow`, this
+     * method permits negative exponents.)
+     *
+     * @param  exponent the exponent.
+     * @param  m the modulus.
+     * @return <tt>this<sup>exponent</sup> mod m</tt>
+     * @throws ArithmeticException `m`  0 or the exponent is
+     * negative and this BigInteger is not *relatively
+     * prime* to `m`.
+     * @see .modInverse
+     */
+    fun modPow(exponent: BigInteger, m: BigInteger): BigInteger {
+        var exponent = exponent
+        if (m.signum <= 0) {
+            throw ArithmeticException("BigInteger: modulus not positive")
+        }
+        // Trivial cases
+        if (exponent.signum == 0) {
+            return if (m == ONE) ZERO else ONE
+        }
+        if (this == ONE) {
+            return if (m == ONE) ZERO else ONE
+        }
+        if (this == ZERO && exponent.signum >= 0) {
+            return ZERO
+        }
+        if (this == negConst[1] && !exponent.testBit(0)) {
+            return if (m == ONE) ZERO else ONE
+        }
+        val invertResult = exponent.signum < 0
+        if (invertResult) {
+            exponent = exponent.negate()
+        }
+        val base = if (this.signum < 0 || this >= m) this.rem(m) else this
+        val result: BigInteger
+        if (m.testBit(0)) { // odd modulus
+            result = base.oddModPow(exponent, m)
+        } else {
+            /*
+             * Even modulus.  Tear it into an "odd part" (m1) and power of two
+             * (m2), exponentiate mod m1, manually exponentiate mod m2, and
+             * use Chinese Remainder Theorem to combine results.
+             */
+
+            // Tear m apart into odd part (m1) and power of 2 (m2)
+            val p = m.getLowestSetBit()   // Max pow of 2 that divides m
+
+            val m1 = m.shr(p)  // m/2**p
+            val m2 = ONE.shl(p) // 2**p
+
+            // Calculate new base from m1
+            val base2 = if (this.signum < 0 || this >= m1) this.rem(m1) else this
+
+            // Caculate (base ** exponent) mod m1.
+            val a1 = if (m1 == ONE)
+                ZERO
+            else
+                base2.oddModPow(exponent, m1)
+
+            // Calculate (this ** exponent) mod m2
+            val a2 = AlgorithmUtils.modPow2(base, exponent, p)
+
+            // Combine results using Chinese Remainder Theorem
+            val y1 = m2.modInverse(m1)
+            val y2 = m1.modInverse(m2)
+
+            result = if (m.mag.size < MAX_MAG_LENGTH / 2) {
+                (a1 * m2 * y1 + a2 * m1 * y2).rem(m)
+            } else {
+                val t1 = MutableBigInteger()
+                MutableBigInteger(a1 * m2).multiply(MutableBigInteger(y1), t1)
+                val t2 = MutableBigInteger()
+                MutableBigInteger(a2 * m1).multiply(MutableBigInteger(y2), t2)
+                t1.add(t2)
+                val q = MutableBigInteger()
+                t1.divide(MutableBigInteger(m), q).toBigInteger()
+            }
+        }
+
+        return if (invertResult) result.modInverse(m) else result
+    }
+
+    /**
+     * Returns a BigInteger whose value is `(this`<sup>-1</sup> `mod m)`.
+     *
+     * @param  m the modulus.
+     * @return `this`<sup>-1</sup> `mod m`.
+     * @throws ArithmeticException `m`  0, or this BigInteger
+     * has no multiplicative inverse mod m (that is, this BigInteger
+     * is not *relatively prime* to m).
+     */
+    fun modInverse(m: BigInteger): BigInteger {
+        if (m.signum != 1) {
+            throw ArithmeticException("BigInteger: modulus not positive")
+        }
+        if (m == ONE) {
+            return ZERO
+        }
+        // Calculate (this mod m)
+        var modVal = this
+        if (this.signum < 0 || this.compareMagnitude(m) >= 0) {
+            modVal = this.rem(m)
+        }
+        if (modVal == ONE) {
+            return ONE
+        }
+        val a = MutableBigInteger(modVal)
+        val b = MutableBigInteger(m)
+
+        val result = a.mutableModInverse(b)
+        return result.toBigInteger(1)
+    }
+
+    /**
+     * Returns a BigInteger whose value is x to the power of y mod z.
+     * Assumes: z is odd && x < z.
+     */
+    private fun oddModPow(y: BigInteger, z: BigInteger): BigInteger {
+        /*
+         * The algorithm is adapted from Colin Plumb's C library.
+         *
+         * The window algorithm:
+         * The idea is to keep a running product of b1 = n^(high-order bits of exp)
+         * and then keep appending exponent bits to it.  The following patterns
+         * apply to a 3-bit window (k = 3):
+         * To append   0: square
+         * To append   1: square, multiply by n^1
+         * To append  10: square, multiply by n^1, square
+         * To append  11: square, square, multiply by n^3
+         * To append 100: square, multiply by n^1, square, square
+         * To append 101: square, square, square, multiply by n^5
+         * To append 110: square, square, multiply by n^3, square
+         * To append 111: square, square, square, multiply by n^7
+         *
+         * Since each pattern involves only one multiply, the longer the pattern
+         * the better, except that a 0 (no multiplies) can be appended directly.
+         * We precompute a table of odd powers of n, up to 2^k, and can then
+         * multiply k bits of exponent at a time.  Actually, assuming random
+         * exponents, there is on average one zero bit between needs to
+         * multiply (1/2 of the time there's none, 1/4 of the time there's 1,
+         * 1/8 of the time, there's 2, 1/32 of the time, there's 3, etc.), so
+         * you have to do one multiply per k+1 bits of exponent.
+         *
+         * The loop walks down the exponent, squaring the result buffer as
+         * it goes.  There is a wbits+1 bit lookahead buffer, buf, that is
+         * filled with the upcoming exponent bits.  (What is read after the
+         * end of the exponent is unimportant, but it is filled with zero here.)
+         * When the most-significant bit of this buffer becomes set, i.e.
+         * (buf & tblmask) != 0, we have to decide what pattern to multiply
+         * by, and when to do it.  We decide, remember to do it in future
+         * after a suitable number of squarings have passed (e.g. a pattern
+         * of "100" in the buffer requires that we multiply by n^1 immediately;
+         * a pattern of "110" calls for multiplying by n^3 after one more
+         * squaring), clear the buffer, and continue.
+         *
+         * When we start, there is one more optimization: the result buffer
+         * is implcitly one, so squaring it or multiplying by it can be
+         * optimized away.  Further, if we start with a pattern like "100"
+         * in the lookahead window, rather than placing n into the buffer
+         * and then starting to square it, we have already computed n^2
+         * to compute the odd-powers table, so we can place that into
+         * the buffer and save a squaring.
+         *
+         * This means that if you have a k-bit window, to compute n^z,
+         * where z is the high k bits of the exponent, 1/2 of the time
+         * it requires no squarings.  1/4 of the time, it requires 1
+         * squaring, ... 1/2^(k-1) of the time, it reqires k-2 squarings.
+         * And the remaining 1/2^(k-1) of the time, the top k bits are a
+         * 1 followed by k-1 0 bits, so it again only requires k-2
+         * squarings, not k-1.  The average of these is 1.  Add that
+         * to the one squaring we have to do to compute the table,
+         * and you'll see that a k-bit window saves k-2 squarings
+         * as well as reducing the multiplies.  (It actually doesn't
+         * hurt in the case k = 1, either.)
+         */
+        // Special case for exponent of one
+        if (y == ONE) {
+            return this
+        }
+        // Special case for base of zero
+        if (this.signum == 0) {
+            return ZERO
+        }
+        val base = this.mag.copyOf()
+        val exp = y.mag
+        val mod = z.mag
+        val modLen = mod.size
+
+        // Select an appropriate window size
+        var wbits = 0
+        var ebits = bitLength(exp, exp.size)
+        // if exponent is 65537 (0x10001), use minimum window size
+        if (ebits != 17 || exp[0] != 65537) {
+            while (ebits > bnExpModThreshTable[wbits]) {
+                wbits += 1
+            }
+        }
+
+        // Calculate appropriate table size
+        val tblmask = 1 shl wbits
+
+        // Allocate table for precomputed odd powers of base in Montgomery form
+        val table = Array(tblmask) { IntArray(modLen) }
+
+        // Compute the modular inverse
+        val inv = -MutableBigInteger.inverseMod32(mod[modLen - 1])
+
+        // Convert base to Montgomery form
+        var a = leftShift(base, base.size, modLen shl 5)
+
+        val q = MutableBigInteger()
+        val a2 = MutableBigInteger(a)
+        val b2 = MutableBigInteger(mod)
+
+        val r = a2.divide(b2, q)
+        table[0] = r.toIntArray()
+
+        // Pad table[0] with leading zeros so its length is at least modLen
+        if (table[0].size < modLen) {
+            val offset = modLen - table[0].size
+            val t2 = IntArray(modLen)
+            for (i in 0 until table[0].size)
+                t2[i + offset] = table[0][i]
+            table[0] = t2
+        }
+
+        // Set b to the square of the base
+        var b = AlgorithmUtils.squareToLen(table[0], modLen, null)
+        b = AlgorithmUtils.montReduce(b, mod, modLen, inv)
+
+        // Set t to high half of b
+        var t = b.copyOf(modLen)
+
+        // Fill in the table with odd powers of the base
+        for (i in 1 until tblmask) {
+            val prod = multiplyToLen(t, modLen, table[i - 1], modLen, null)
+            table[i] = AlgorithmUtils.montReduce(prod, mod, modLen, inv)
+        }
+
+        // Pre load the window that slides over the exponent
+        var bitpos = 1 shl (ebits - 1 and 32 - 1)
+
+        var buf = 0
+        var elen = exp.size
+        var eIndex = 0
+        for (i in 0 .. wbits) {
+            buf = buf shl 1 or if (exp[eIndex] and bitpos != 0) 1 else 0
+            bitpos = bitpos ushr 1
+            if (bitpos == 0) {
+                eIndex += 1
+                bitpos = 1 shl 32 - 1
+                elen -= 1
+            }
+        }
+
+        var multpos = ebits
+
+        // The first iteration, which is hoisted out of the main loop
+        ebits -= 1
+        var isone = true
+
+        multpos = ebits - wbits
+        while (buf and 1 == 0) {
+            buf = buf ushr 1
+            multpos += 1
+        }
+
+        var mult = table[buf.ushr(1)]
+
+        buf = 0
+        if (multpos == ebits) {
+            isone = false
+        }
+        // The main loop
+        while (true) {
+            ebits -= 1
+            // Advance the window
+            buf = buf shl 1
+
+            if (elen != 0) {
+                buf = buf or if (exp[eIndex] and bitpos != 0) 1 else 0
+                bitpos = bitpos ushr 1
+                if (bitpos == 0) {
+                    eIndex += 1
+                    bitpos = 1 shl 32 - 1
+                    elen -= 1
+                }
+            }
+
+            // Examine the window for pending multiplies
+            if (buf and tblmask != 0) {
+                multpos = ebits - wbits
+                while (buf and 1 == 0) {
+                    buf = buf ushr 1
+                    multpos++
+                }
+                mult = table[buf.ushr(1)]
+                buf = 0
+            }
+
+            // Perform multiply
+            if (ebits == multpos) {
+                if (isone) {
+                    b = mult.copyOf()
+                    isone = false
+                } else {
+                    t = b
+                    a = multiplyToLen(t, modLen, mult, modLen, a)
+                    a = AlgorithmUtils.montReduce(a, mod, modLen, inv)
+                    t = a
+                    a = b
+                    b = t
+                }
+            }
+
+            // Check if done
+            if (ebits == 0) {
+                break
+            }
+            // Square the input
+            if (!isone) {
+                t = b
+                a = AlgorithmUtils.squareToLen(t, modLen, a)
+                a = AlgorithmUtils.montReduce(a, mod, modLen, inv)
+                t = a
+                a = b
+                b = t
+            }
+        }
+
+        // Convert result out of Montgomery form and return
+        var t2 = IntArray(2 * modLen)
+        b.copyInto(t2, modLen, 0, modLen)
+
+        b = AlgorithmUtils.montReduce(t2, mod, modLen, inv)
+
+        t2 = b.copyOf(modLen)
+
+        return BigInteger(1, t2)
+    } // private fun oddModPow(y: BigInteger, z: BigInteger): BigInteger
+
+    /**
+     * Returns the integer square root of this BigInteger.  The integer square
+     * root of the corresponding mathematical integer `n` is the largest
+     * mathematical integer `s` such that `s*s <= n`.  It is equal
+     * to the value of `floor(sqrt(n))`, where `sqrt(n)` denotes the
+     * real square root of `n` treated as a real.  Note that the integer
+     * square root will be less than the real square root if the latter is not
+     * representable as an integral value.
+     *
+     * @return the integer square root of `this`
+     * @throws ArithmeticException if `this` is negative.  (The square
+     * root of a negative integer `val` is
+     * `(i * sqrt(-val))` where *i* is the
+     * *imaginary unit* and is equal to
+     * `sqrt(-1)`.)
+     * @since  Java 9
+     */
+    fun sqrt(): BigInteger {
+        if (this.signum < 0) {
+            throw ArithmeticException("Negative BigInteger")
+        }
+
+        return MutableBigInteger(this.mag).sqrt().toBigInteger()
+    }
+
+    /**
+     * Returns an array of two BigIntegers containing the integer square root
+     * `s` of `this` and its remainder `this - s*s`,
+     * respectively.
+     *
+     * @return an array of two BigIntegers with the integer square root at
+     * offset 0 and the remainder at offset 1
+     * @throws ArithmeticException if `this` is negative.  (The square
+     * root of a negative integer `val` is
+     * `(i * sqrt(-val))` where *i* is the
+     * *imaginary unit* and is equal to
+     * `sqrt(-1)`.)
+     * @see .sqrt
+     * @since  Java 9
+     */
+    fun sqrtAndRemainder(): Array<BigInteger> {
+        val s = sqrt()
+        val r = this - AlgorithmUtils.square(s)
+        if (r < BigInteger.ZERO) {
+            throw ArithmeticException("Cannot get the square root of a negative number")
+        }
+        return arrayOf(s, r)
+    }
+
+    /**
      * Compares the magnitude array of this BigInteger with the specified
      * BigInteger's. This is the version of compareTo ignoring sign.
      *
@@ -1908,20 +2444,21 @@ class BigInteger: Number, Comparable<BigInteger> {
                 newMag[i++] = mag[j++] shl nBits2 or mag[j].ushr(nBits)
         }
 
-        if (signum < 0) {
+        if (this.signum < 0) {
             // Find out whether any one-bits were shifted off the end.
             var onesLost = false
             var i = magLen - 1
             val j = magLen - nInts
             while (i >= j && !onesLost) {
-                onesLost = mag[i] !== 0
-                i--
+                onesLost = this.mag[i] != 0
+                i -= 1
             }
-            if (!onesLost && nBits != 0)
-                onesLost = mag[magLen - nInts - 1] shl 32 - nBits !== 0
-
-            if (onesLost)
+            if (!onesLost && nBits != 0) {
+                onesLost = this.mag[magLen - nInts - 1] shl 32 - nBits != 0
+            }
+            if (onesLost) {
                 newMag = javaIncrement(newMag)
+            }
         }
 
         return BigInteger(newMag, signum)

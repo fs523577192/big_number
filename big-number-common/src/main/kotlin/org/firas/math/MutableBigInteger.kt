@@ -145,6 +145,67 @@ internal open class MutableBigInteger private constructor(
         private fun unsignedLongCompare(one: Long, two: Long): Boolean {
             return one + Long.MIN_VALUE > two + Long.MIN_VALUE
         }
+
+        /**
+         * Returns the multiplicative inverse of val mod 2^32.  Assumes val is odd.
+         */
+        fun inverseMod32(value: Int): Int {
+            // Newton's iteration!
+            var t = value
+            t *= 2 - value * t
+            t *= 2 - value * t
+            t *= 2 - value * t
+            t *= 2 - value * t
+            return t
+        }
+
+        /**
+         * Calculate the multiplicative inverse of 2^k mod mod, where mod is odd.
+         */
+        fun modInverseBP2(mod: MutableBigInteger, k: Int): MutableBigInteger {
+            // Copy the mod to protect original
+            return fixup(MutableBigInteger(1), MutableBigInteger(mod), k)
+        }
+
+        /**
+         * The Fixup Algorithm
+         * Calculates X such that X = C * 2^(-k) (mod P)
+         * Assumes C<P and P is odd.
+         */
+        fun fixup(c: MutableBigInteger, p: MutableBigInteger,
+                  k: Int): MutableBigInteger {
+            val temp = MutableBigInteger()
+            // Set r to the multiplicative inverse of p mod 2^32
+            val r = -inverseMod32(p.value[p.offset+p.intLen-1])
+
+            val numWords = k shr 5
+            for (i in 0 until numWords) {
+                // V = R * c (mod 2^j)
+                val v = r * c.value[c.offset + c.intLen-1]
+                // c = c + (v * p)
+                p.mul(v, temp)
+                c.add(temp)
+                // c = c / 2^j
+                c.intLen -= 1
+            }
+            val numBits = k and 0x1f
+            if (numBits != 0) {
+                // V = R * c (mod 2^j)
+                var v = r * c.value[c.offset + c.intLen-1]
+                v = v and ((1 shl numBits) - 1)
+                // c = c + (v * p)
+                p.mul(v, temp)
+                c.add(temp)
+                // c = c / 2^j
+                c.rightShift(numBits)
+            }
+
+            // In theory, c may be greater than p at this point (Very rare!)
+            while (c.compare(p) >= 0) {
+                c.subtract(p)
+            }
+            return c
+        }
     }
 
     /**
@@ -725,10 +786,121 @@ internal open class MutableBigInteger private constructor(
     }
 
     /**
+     * Multiply the contents of two MutableBigInteger objects. The result is
+     * placed into MutableBigInteger z. The contents of y are not changed.
+     */
+    internal fun multiply(y: MutableBigInteger, z: MutableBigInteger) {
+        val xLen = intLen
+        val yLen = y.intLen
+        val newLen = xLen + yLen
+
+        // Put z into an appropriate state to receive product
+        if (z.value.size < newLen) {
+            z.value = IntArray(newLen)
+        }
+        z.offset = 0
+        z.intLen = newLen
+
+        // The first iteration is hoisted out of the loop to avoid extra add
+        var carry: Long = 0
+        run {
+            var j = yLen - 1
+            var k = yLen + xLen - 1
+            while (j >= 0) {
+                val product = (y.value[j + y.offset].toLong() and LONG_MASK) *
+                        (this.value[xLen - 1 + this.offset].toLong() and LONG_MASK) + carry
+                z.value[k] = product.toInt()
+                carry = product.ushr(32)
+                j -= 1
+                k -= 1
+            }
+        }
+        z.value[xLen - 1] = carry.toInt()
+
+        // Perform the multiplication word by word
+        for (i in xLen - 2 downTo 0) {
+            carry = 0
+            var j = yLen - 1
+            var k = yLen + i
+            while (j >= 0) {
+                val product = (y.value[j + y.offset].toLong() and LONG_MASK) *
+                        (this.value[i + this.offset].toLong() and LONG_MASK) +
+                        (z.value[k].toLong() and LONG_MASK) + carry
+                z.value[k] = product.toInt()
+                carry = product.ushr(32)
+                j -= 1
+                k -= 1
+            }
+            z.value[i] = carry.toInt()
+        }
+
+        // Remove leading zeros from product
+        z.normalize()
+    }
+
+    /**
+     * Multiply the contents of this MutableBigInteger by the word y. The
+     * result is placed into z.
+     */
+    fun mul(y: Int, z: MutableBigInteger) {
+        if (y == 1) {
+            z.copyValue(this)
+            return
+        }
+
+        if (y == 0) {
+            z.clear()
+            return
+        }
+
+        // Perform the multiplication word by word
+        val ylong = y.toLong() and LONG_MASK
+        val zval = if (z.value.size < intLen + 1)
+            IntArray(intLen + 1)
+        else
+            z.value
+        var carry: Long = 0
+        for (i in intLen - 1 downTo 0) {
+            val product = ylong * (value[i + offset].toLong() and LONG_MASK) + carry
+            zval[i + 1] = product.toInt()
+            carry = product.ushr(32)
+        }
+
+        if (carry == 0L) {
+            z.offset = 1
+            z.intLen = intLen
+        } else {
+            z.offset = 0
+            z.intLen = intLen + 1
+            zval[0] = carry.toInt()
+        }
+        z.value = zval
+    }
+
+    /**
      * @see .divideKnuth
      */
-    fun divideKnuth(b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger? {
+    internal fun divideKnuth(b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger? {
         return divideKnuth(b, quotient, true)
+    }
+
+    /**
+     * Calculates the quotient of this div b and places the quotient in the
+     * provided MutableBigInteger objects and the remainder object is returned.
+     *
+     */
+    internal fun divide(b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger {
+        return divide(b, quotient, true)!!
+    }
+
+    internal fun divide(b: MutableBigInteger, quotient: MutableBigInteger,
+                        needRemainder: Boolean): MutableBigInteger? {
+        return if (b.intLen < AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD ||
+                intLen - b.intLen < AlgorithmUtils.BURNIKEL_ZIEGLER_OFFSET) {
+            divideKnuth(b, quotient, needRemainder)
+        } else {
+            divideAndRemainderBurnikelZiegler(b, quotient)
+        }
     }
 
     /**
@@ -1078,8 +1250,9 @@ internal open class MutableBigInteger private constructor(
                     if (qrem.toLong() and LONG_MASK >= dhLong) {
                         estProduct -= dl.toLong() and LONG_MASK
                         rs = qrem.toLong() and LONG_MASK shl 32 or nl
-                        if (unsignedLongCompare(estProduct, rs))
+                        if (unsignedLongCompare(estProduct, rs)) {
                             qhat -= 1
+                        }
                     }
                 }
             }
@@ -1134,8 +1307,9 @@ internal open class MutableBigInteger private constructor(
                     if (qrem.toLong() and LONG_MASK >= dhLong) {
                         estProduct -= dl.toLong() and LONG_MASK
                         rs = qrem.toLong() and LONG_MASK shl 32 or nl
-                        if (unsignedLongCompare(estProduct, rs))
+                        if (unsignedLongCompare(estProduct, rs)) {
                             qhat -= 1
+                        }
                     }
                 }
             }
@@ -1144,16 +1318,17 @@ internal open class MutableBigInteger private constructor(
             // D4 Multiply and subtract
             val borrow: Int
             rem.value[limit - 1 + rem.offset] = 0
-            if (needRemainder)
+            if (needRemainder) {
                 borrow = mulsub(rem.value, divisor, qhat, dlen, limit - 1 + rem.offset)
-            else
+            } else {
                 borrow = mulsubBorrow(rem.value, divisor, qhat, dlen, limit - 1 + rem.offset)
-
+            }
             // D5 Test remainder
             if (borrow + -0x80000000 > nh2) {
                 // D6 Add back
-                if (needRemainder)
+                if (needRemainder) {
                     divadd(divisor, rem.value, limit - 1 + 1 + rem.offset)
+                }
                 qhat -= 1
             }
 
@@ -1179,7 +1354,7 @@ internal open class MutableBigInteger private constructor(
      *
      * @return the remainder of the division is returned.
      */
-    private fun divideOneWord(divisor: Int, quotient: MutableBigInteger): Int {
+    internal fun divideOneWord(divisor: Int, quotient: MutableBigInteger): Int {
         val divisorLong = divisor.toLong() and LONG_MASK
 
         // Special case of one word dividend
@@ -1265,6 +1440,240 @@ internal open class MutableBigInteger private constructor(
         }
         // n - q*dlong == r && 0 <= r <dLong, hence we're done.
         return r shl 32 or (q and LONG_MASK)
+    }
+
+    /**
+     * Returns the modInverse of this mod p. This and p are not affected by
+     * the operation.
+     */
+    fun mutableModInverse(p: MutableBigInteger): MutableBigInteger {
+        // Modulus is odd, use Schroeppel's algorithm
+        if (p.isOdd()) {
+            return modInverse(p)
+        }
+        // Base and modulus are even, throw exception
+        if (isEven())
+            throw ArithmeticException("BigInteger not invertible.")
+
+        // Get even part of modulus expressed as a power of 2
+        val powersOf2 = p.getLowestSetBit()
+
+        // Construct odd part of modulus
+        val oddMod = MutableBigInteger(p)
+        oddMod.rightShift(powersOf2)
+
+        if (oddMod.isOne())
+            return modInverseMP2(powersOf2)
+
+        // Calculate 1/a mod oddMod
+        val oddPart = modInverse(oddMod)
+
+        // Calculate 1/a mod evenMod
+        val evenPart = modInverseMP2(powersOf2)
+
+        // Combine the results using Chinese Remainder Theorem
+        val y1 = modInverseBP2(oddMod, powersOf2)
+        val y2 = oddMod.modInverseMP2(powersOf2)
+
+        val temp1 = MutableBigInteger()
+        val temp2 = MutableBigInteger()
+        val result = MutableBigInteger()
+
+        oddPart.leftShift(powersOf2)
+        oddPart.multiply(y1, result)
+
+        evenPart.multiply(oddMod, temp1)
+        temp1.multiply(y2, temp2)
+
+        result.add(temp2)
+        return result.divide(p, temp1)
+    }
+
+    /**
+     * Calculate the multiplicative inverse of this mod mod, where mod is odd.
+     * This and mod are not changed by the calculation.
+     *
+     * This method implements an algorithm due to Richard Schroeppel, that uses
+     * the same intermediate representation as Montgomery Reduction
+     * ("Montgomery Form").  The algorithm is described in an unpublished
+     * manuscript entitled "Fast Modular Reciprocals."
+     */
+    private fun modInverse(mod: MutableBigInteger): MutableBigInteger {
+        val p = MutableBigInteger(mod)
+        var f = MutableBigInteger(this)
+        var g = MutableBigInteger(p)
+        var c = SignedMutableBigInteger(1)
+        var d = SignedMutableBigInteger()
+
+        var k = 0
+        // Right shift f k times until odd, left shift d k times
+        if (f.isEven()) {
+            val trailingZeros = f.getLowestSetBit()
+            f.rightShift(trailingZeros)
+            d.leftShift(trailingZeros)
+            k = trailingZeros
+        }
+
+        // The Almost Inverse Algorithm
+        while (!f.isOne()) {
+            // If gcd(f, g) != 1, number is not invertible modulo mod
+            if (f.isZero()) {
+                throw ArithmeticException("BigInteger not invertible.")
+            }
+            // If f < g exchange f, g and c, d
+            if (f.compare(g) < 0) {
+                val temp = f
+                f = g
+                g = temp
+                val sTemp = d
+                d = c
+                c = sTemp
+            }
+
+            // If f == g (mod 4)
+            if (((f.value[f.offset + f.intLen - 1] xor
+                 g.value[g.offset + g.intLen - 1]) and 3) == 0) {
+                f.subtract(g)
+                c.signedSubtract(d)
+            } else { // If f != g (mod 4)
+                f.add(g)
+                c.signedAdd(d)
+            }
+
+            // Right shift f k times until odd, left shift d k times
+            val trailingZeros = f.getLowestSetBit()
+            f.rightShift(trailingZeros)
+            d.leftShift(trailingZeros)
+            k += trailingZeros
+        }
+
+        while (c.sign < 0) {
+            c.signedAdd(p)
+        }
+        return fixup(c, p, k)
+    }
+
+    /*
+     * Calculate the multiplicative inverse of this mod 2^k.
+     */
+    private fun modInverseMP2(k: Int): MutableBigInteger {
+        if (isEven())
+            throw ArithmeticException("Non-invertible. (GCD != 1)")
+
+        if (k > 64) {
+            return AlgorithmUtils.euclidModInverse(this, k)
+        }
+        var t = inverseMod32(value[offset + intLen - 1])
+
+        if (k < 33) {
+            t = if (k == 32) t else t and (1 shl k) - 1
+            return MutableBigInteger(t)
+        }
+
+        var pLong = value[offset + intLen - 1].toLong() and LONG_MASK
+        if (intLen > 1) {
+            pLong = pLong or (value[offset + intLen - 2].toLong() shl 32)
+        }
+        var tLong = t.toLong() and LONG_MASK
+        tLong = tLong * (2 - pLong * tLong)  // 1 more Newton iter step
+        tLong = if (k == 64) tLong else tLong and (1L shl k) - 1
+
+        val result = MutableBigInteger(IntArray(2))
+        result.value[0] = tLong.ushr(32).toInt()
+        result.value[1] = tLong.toInt()
+        result.intLen = 2
+        result.normalize()
+        return result
+    }
+
+    /**
+     * Calculate the integer square root {@code floor(sqrt(this))} where
+     * {@code sqrt(.)} denotes the mathematical square root. The contents of
+     * {@code this} are <b>not</b> changed. The value of {@code this} is assumed
+     * to be non-negative.
+     *
+     * @implNote The implementation is based on the material in Henry S. Warren,
+     * Jr., <i>Hacker's Delight (2nd ed.)</i> (Addison Wesley, 2013), 279-282.
+     *
+     * @throws ArithmeticException if the value returned by {@code bitLength()}
+     * overflows the range of {@code int}.
+     * @return the integer square root of {@code this}
+     * @since 9
+     */
+    internal fun sqrt(): MutableBigInteger {
+        // Special cases.
+        if (this.isZero()) {
+            return MutableBigInteger(0)
+        } else if (this.value.size == 1
+                && (this.value[0].toLong() and LONG_MASK) < 4) { // result is unity
+            return MutableBigInteger(1)
+        }
+
+        if (bitLength() <= 63) {
+            // Initial estimate is the square root of the positive long value.
+            val v = BigInteger(this.value, 1).longValueExact()
+            var xk = kotlin.math.floor(kotlin.math.sqrt(v.toDouble())).toLong()
+
+            // Refine the estimate.
+            do {
+                val xk1 = (xk + v/xk)/2
+
+                // Terminate when non-decreasing.
+                if (xk1 >= xk) {
+                    return MutableBigInteger(intArrayOf(
+                        (xk ushr 32).toInt(), (xk and LONG_MASK).toInt()
+                    ))
+                }
+
+                xk = xk1
+            } while (true)
+        } else {
+            // Set up the initial estimate of the iteration.
+
+            // Obtain the bitLength > 63.
+            val bitLength = this.bitLength().toInt()
+            if (bitLength.toLong() != this.bitLength()) {
+                throw ArithmeticException("bitLength() integer overflow")
+            }
+
+            // Determine an even valued right shift into positive long range.
+            var shift = bitLength - 63
+            if (shift % 2 == 1) {
+                shift += 1
+            }
+
+            // Shift the value into positive long range.
+            var xk = MutableBigInteger(this)
+            xk.rightShift(shift)
+            xk.normalize()
+
+            // Use the square root of the shifted value as an approximation.
+            val d = BigInteger(xk.value, 1).toDouble();
+            val bi = BigInteger.valueOf(kotlin.math.ceil(kotlin.math.sqrt(d)).toLong())
+            xk = MutableBigInteger(bi.mag)
+
+            // Shift the approximate square root back into the original range.
+            xk.leftShift(shift / 2)
+
+            // Refine the estimate.
+            val xk1 = MutableBigInteger()
+            do {
+                // xk1 = (xk + n/xk)/2
+                this.divide(xk, xk1, false)
+                xk1.add(xk)
+                xk1.rightShift(1)
+
+                // Terminate when non-decreasing.
+                if (xk1.compare(xk) >= 0) {
+                    return xk
+                }
+
+                // xk = xk1
+                xk.copyValue(xk1)
+
+                xk1.reset()
+            } while (true)
+        }
     }
 
     /**

@@ -50,7 +50,7 @@ internal class SignedMutableBigInteger: MutableBigInteger {
     /**
      * The sign of this MutableBigInteger.
      */
-    private var sign = 1
+    internal var sign = 1
 
     /**
      * The default constructor. An empty MutableBigInteger is created with
