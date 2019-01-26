@@ -40,15 +40,15 @@ internal class PrimeUtils private constructor() {
          * Bit lengths larger than this constant can cause overflow in searchLen
          * calculation and in BitSieve.singleSearch method.
          */
-        private val PRIME_SEARCH_BIT_LENGTH_LIMIT = 500000000
+        private const val PRIME_SEARCH_BIT_LENGTH_LIMIT = 500000000
 
         // Minimum size in bits that the requested prime number has
         // before we use the large prime number generating algorithms.
         // The cutoff of 95 was chosen empirically for best performance.
-        private val SMALL_PRIME_THRESHOLD = 95
+        private const val SMALL_PRIME_THRESHOLD = 95
 
         // Certainty required to meet the spec of probablePrime
-        private val DEFAULT_PRIME_CERTAINTY = 100
+        private const val DEFAULT_PRIME_CERTAINTY = 100
 
         private val SMALL_PRIME_PRODUCT = BigInteger.valueOf(3L * 5 * 7 * 11 * 13 * 17 * 19 * 23 * 29 * 31 * 37 * 41)
 
@@ -192,16 +192,14 @@ internal class PrimeUtils private constructor() {
         private fun lucasLehmerSequence(z: Int, k: BigInteger, n: BigInteger): BigInteger {
             val d = BigInteger.valueOf(z.toLong())
             var u = BigInteger.ONE
-            var u2: BigInteger
             var v = BigInteger.ONE
-            var v2: BigInteger
 
             for (i in k.bitLength() - 2 downTo 0) {
-                u2 = u.times(v).rem(n)
+                var u2 = u.times(v).rem(n)
 
-                v2 = AlgorithmUtils.square(v).plus(d.times(AlgorithmUtils.square(u))).rem(n)
+                var v2 = (AlgorithmUtils.square(v) + d * AlgorithmUtils.square(u)).rem(n)
                 if (v2.testBit(0)) {
-                    v2 = v2.minus(n)
+                    v2 -= n
                 }
                 v2 = v2.shr(1)
 
@@ -209,13 +207,14 @@ internal class PrimeUtils private constructor() {
                 v = v2
                 if (k.testBit(i)) {
                     u2 = u.plus(v).rem(n)
-                    if (u2.testBit(0))
-                        u2 = u2.minus(n)
-
+                    if (u2.testBit(0)) {
+                        u2 -= n
+                    }
                     u2 = u2.shr(1)
                     v2 = v.plus(d.times(u)).rem(n)
-                    if (v2.testBit(0))
-                        v2 = v2.minus(n)
+                    if (v2.testBit(0)) {
+                        v2 -= n
+                    }
                     v2 = v2.shr(1)
 
                     u = u2
@@ -263,7 +262,7 @@ internal class PrimeUtils private constructor() {
                 }
             }
             return true
-        }
+        } // private fun passesMillerRabin(value: BigInteger, iterations: Int, rnd: Random?): Boolean
 
         /**
          * Find a random number of the specified bitLength that is probably prime.
@@ -299,9 +298,9 @@ internal class PrimeUtils private constructor() {
                 }
 
                 // All candidates of bitLength 2 and 3 are prime by this point
-                if (bitLength < 4)
+                if (bitLength < 4) {
                     return p
-
+                }
                 // Do expensive test if we survive pre-test (or it's inapplicable)
                 if (primeToCertainty(p, certainty, rnd)) {
                     return p

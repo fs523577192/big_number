@@ -697,7 +697,7 @@ class BigInteger: Number, Comparable<BigInteger> {
              * with just the very first value.  Additional values will be created
              * on demand.
              */
-            powerCache = Array<Array<BigInteger>>(Character.MAX_RADIX + 1) {
+            powerCache = Array(Character.MAX_RADIX + 1) {
                 i -> if (i < Character.MIN_RADIX) arrayOf() else arrayOf(BigInteger.valueOf(i.toLong()))
             }
             logCache = DoubleArray(Character.MAX_RADIX + 1) {
@@ -1380,7 +1380,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return this `BigInteger` converted to a `long`.
      * @throws ArithmeticException if the value of `this` will
      * not exactly fit in a `long`.
-     * @see BigInteger.longValue
+     * @see BigInteger.toLong
      *
      * @since  Java 1.8
      */
@@ -2218,13 +2218,11 @@ class BigInteger: Number, Comparable<BigInteger> {
             }
         }
 
-        var multpos = ebits
-
         // The first iteration, which is hoisted out of the main loop
         ebits -= 1
         var isone = true
 
-        multpos = ebits - wbits
+        var multpos = ebits - wbits
         while (buf and 1 == 0) {
             buf = buf ushr 1
             multpos += 1

@@ -30,6 +30,7 @@ import org.firas.math.BigDecimal.Companion.INFLATED
 import org.firas.math.BigInteger.Companion.LONG_MASK
 import org.firas.util.Arrays
 import org.firas.util.Integers
+import kotlin.math.absoluteValue
 
 /**
  * A class used to represent multiprecision integers that makes efficient
@@ -113,7 +114,7 @@ internal open class MutableBigInteger private constructor(
          * `divideKnuth` does not eliminate common powers of two from
          * the dividend and divisor.
          */
-        internal val KNUTH_POW2_THRESH_LEN = 6
+        internal const val KNUTH_POW2_THRESH_LEN = 6
 
         /**
          * The minimum number of trailing zero ints for cancelling powers of two
@@ -122,7 +123,7 @@ internal open class MutableBigInteger private constructor(
          * at the end, `divideKnuth` does not eliminate common powers
          * of two from the dividend and divisor.
          */
-        internal val KNUTH_POW2_THRESH_ZEROS = 3
+        internal const val KNUTH_POW2_THRESH_ZEROS = 3
 
         private fun copyAndShift(src: IntArray, srcFrom: Int, srcLen: Int,
                                  dst: IntArray, dstFrom: Int, shift: Int) {
@@ -326,7 +327,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Clear out a MutableBigInteger for reuse.
      */
-    internal fun clear() {
+    private fun clear() {
         this.intLen = 0
         this.offset = 0
         Arrays.fill(this.value, 0)
@@ -335,7 +336,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Set a MutableBigInteger to zero, removing its offset.
      */
-    internal fun reset() {
+    private fun reset() {
         this.intLen = 0
         this.offset = this.intLen
     }
@@ -599,14 +600,14 @@ internal open class MutableBigInteger private constructor(
     /**
      * Returns true iff this MutableBigInteger is even.
      */
-    internal fun isEven(): Boolean {
+    private fun isEven(): Boolean {
         return this.intLen == 0 || this.value[this.offset + this.intLen - 1].and(1) == 0
     }
 
     /**
      * Returns true iff this MutableBigInteger is odd.
      */
-    internal fun isOdd(): Boolean {
+    private fun isOdd(): Boolean {
         return if (isZero()) false else this.value[this.offset + this.intLen - 1].and(1) == 1
     }
 
@@ -625,7 +626,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Like [.rightShift] but `n` can be greater than the length of the number.
      */
-    internal fun safeRightShift(n: Int) {
+    private fun safeRightShift(n: Int) {
         if (n / 32 >= this.intLen) {
             reset()
         } else {
@@ -659,7 +660,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Like [.leftShift] but `n` can be zero.
      */
-    internal fun safeLeftShift(n: Int) {
+    private fun safeLeftShift(n: Int) {
         if (n > 0) {
             leftShift(n)
         }
@@ -727,9 +728,9 @@ internal open class MutableBigInteger private constructor(
      * Subtracts the smaller of this and b from the larger and places the
      * result into this MutableBigInteger.
      */
-    internal fun subtract(b: MutableBigInteger): Int {
+    internal fun subtract(other: MutableBigInteger): Int {
         var a = this
-        var b = b
+        var b = other
 
         var result = value
         val sign = a.compare(b)
@@ -760,13 +761,15 @@ internal open class MutableBigInteger private constructor(
 
             diff = (a.value[x+a.offset].toLong() and LONG_MASK) -
                    (b.value[y+b.offset].toLong() and LONG_MASK) - (-(diff shr 32))
-            result[rstart--] = diff.toInt()
+            result[rstart] = diff.toInt()
+            rstart -= 1
         }
         // Subtract remainder of longer number
         while (x > 0) {
             x -= 1
             diff = (a.value[x+a.offset].toLong() and LONG_MASK) - (-(diff shr 32))
-            result[rstart--] = diff.toInt()
+            result[rstart] = diff.toInt()
+            rstart -= 1
         }
 
         this.value = result
@@ -774,16 +777,16 @@ internal open class MutableBigInteger private constructor(
         this.offset = this.value.size - resultLen
         normalize()
         return sign
-    }
+    } // internal fun subtract(other: MutableBigInteger): Int
 
     /**
      * Subtracts the smaller of a and b from the larger and places the result
      * into the larger. Returns 1 if the answer is in a, -1 if in b, 0 if no
      * operation was performed.
      */
-    private fun difference(b: MutableBigInteger): Int {
+    private fun difference(other: MutableBigInteger): Int {
         var a = this
-        var b = b
+        var b = other
         val sign = a.compare(b)
         if (sign == 0) {
             return 0
@@ -974,7 +977,7 @@ internal open class MutableBigInteger private constructor(
             return if (needRemainder) MutableBigInteger() else null
         }
 
-        quotient.clear();
+        quotient.clear()
         // Special case one word divisor
         if (b.intLen == 1) {
             val r = divideOneWord(b.value[b.offset], quotient)
@@ -1000,7 +1003,7 @@ internal open class MutableBigInteger private constructor(
         }
 
         return divideMagnitude(b, quotient, needRemainder)
-    }
+    } // internal fun divideKnuth
 
     /**
      * Computes `this/b` and `this%b` using the
@@ -1072,7 +1075,7 @@ internal open class MutableBigInteger private constructor(
             ri.rightShift(sigma)   // step 9: this and b were shifted, so shift back
             return ri
         }
-    }
+    } // internal fun divideAndRemainderBurnikelZiegler
 
     /**
      * This method implements algorithm 1 from pg. 4 of the Burnikel-Ziegler paper.
@@ -1245,8 +1248,8 @@ internal open class MutableBigInteger private constructor(
         for (j in 0 until limit - 1) {
             // D3 Calculate qhat
             // estimate qhat
-            var qhat = 0
-            var qrem = 0
+            var qhat: Int
+            var qrem: Int
             var skipCorrection = false
             val nh = rem.value[j + rem.offset]
             val nh2 = nh + -0x80000000
@@ -1305,8 +1308,8 @@ internal open class MutableBigInteger private constructor(
         } // D7 loop on j
         // D3 Calculate qhat
         // estimate qhat
-        var qhat = 0
-        var qrem = 0
+        var qhat: Int
+        var qrem: Int
         var skipCorrection = false
         val nh = rem.value[limit - 1 + rem.offset]
         val nh2 = nh + -0x80000000
@@ -1347,12 +1350,11 @@ internal open class MutableBigInteger private constructor(
             }
 
             // D4 Multiply and subtract
-            val borrow: Int
             rem.value[limit - 1 + rem.offset] = 0
-            if (needRemainder) {
-                borrow = mulsub(rem.value, divisor, qhat, dlen, limit - 1 + rem.offset)
+            val borrow: Int = if (needRemainder) {
+                mulsub(rem.value, divisor, qhat, dlen, limit - 1 + rem.offset)
             } else {
-                borrow = mulsubBorrow(rem.value, divisor, qhat, dlen, limit - 1 + rem.offset)
+                mulsubBorrow(rem.value, divisor, qhat, dlen, limit - 1 + rem.offset)
             }
             // D5 Test remainder
             if (borrow + -0x80000000 > nh2) {
@@ -1437,7 +1439,7 @@ internal open class MutableBigInteger private constructor(
         quotient.normalize()
         // Unnormalize
         return if (shift > 0) rem % divisor else rem
-    }
+    } // internal fun divideOneWord(divisor: Int, quotient: MutableBigInteger): Int
 
     /**
      * This method divides a long quantity by an int to estimate
@@ -1620,17 +1622,17 @@ internal open class MutableBigInteger private constructor(
     /**
      * Calculate GCD of this and b. This and b are changed by the computation.
      */
-    internal fun hybridGCD(b: MutableBigInteger): MutableBigInteger {
-        var b = b
+    internal fun hybridGCD(other: MutableBigInteger): MutableBigInteger {
+        var b = other
         // Use Euclid's algorithm until the numbers are approximately the
         // same length, then use the binary GCD algorithm to find the GCD.
         var a = this
         val q = MutableBigInteger()
 
         while (b.intLen != 0) {
-            if (kotlin.math.abs(a.intLen - b.intLen) < 2)
+            if ((a.intLen - b.intLen).absoluteValue < 2) {
                 return a.binaryGCD(b)
-
+            }
             val r = a.divide(b, q)
             a = b
             b = r
@@ -1680,8 +1682,9 @@ internal open class MutableBigInteger private constructor(
                 r.value[0] = x
                 r.intLen = 1
                 r.offset = 0
-                if (k > 0)
+                if (k > 0) {
                     r.leftShift(k)
+                }
                 return r
             }
 
@@ -1693,10 +1696,11 @@ internal open class MutableBigInteger private constructor(
             t = if (tsign >= 0) u else other
         }
 
-        if (k > 0)
+        if (k > 0) {
             u.leftShift(k)
+        }
         return u
-    }
+    } // private fun binaryGCD(v: MutableBigInteger): MutableBigInteger
 
     /**
      * Calculate the integer square root {@code floor(sqrt(this))} where
@@ -1710,7 +1714,7 @@ internal open class MutableBigInteger private constructor(
      * @throws ArithmeticException if the value returned by {@code bitLength()}
      * overflows the range of {@code int}.
      * @return the integer square root of {@code this}
-     * @since 9
+     * @since Java 9
      */
     internal fun sqrt(): MutableBigInteger {
         // Special cases.
@@ -1760,7 +1764,7 @@ internal open class MutableBigInteger private constructor(
             xk.normalize()
 
             // Use the square root of the shifted value as an approximation.
-            val d = BigInteger(xk.value, 1).toDouble();
+            val d = BigInteger(xk.value, 1).toDouble()
             val bi = BigInteger.valueOf(kotlin.math.ceil(kotlin.math.sqrt(d)).toLong())
             xk = MutableBigInteger(bi.mag)
 
@@ -1786,7 +1790,7 @@ internal open class MutableBigInteger private constructor(
                 xk1.reset()
             } while (true)
         }
-    }
+    } // internal fun sqrt(): MutableBigInteger
 
     /**
      * Returns a `BigInteger` equal to the `n`
@@ -2008,14 +2012,14 @@ internal open class MutableBigInteger private constructor(
         this.value = result
         this.intLen = resultLen
         this.offset = result.size - resultLen
-    }
+    } // internal fun add(addend: MutableBigInteger)
 
     /**
      * Adds the value of `addend` shifted `n` ints to the left.
      * Has the same effect as `addend.leftShift(32*ints); add(addend);`
      * but doesn't change the value of `addend`.
      */
-    internal fun addShifted(addend: MutableBigInteger, n: Int) {
+    private fun addShifted(addend: MutableBigInteger, n: Int) {
         if (addend.isZero()) {
             return
         }
@@ -2036,7 +2040,8 @@ internal open class MutableBigInteger private constructor(
             val bval = if (y + addend.offset < addend.value.size) addend.value[y + addend.offset] else 0
             sum = (this.value[x + this.offset].toLong() and LONG_MASK) +
                     (bval.toLong() and LONG_MASK) + carry
-            result[rstart--] = sum.toInt()
+            result[rstart] = sum.toInt()
+            rstart -= 1
             carry = sum.ushr(32)
         }
 
@@ -2047,19 +2052,21 @@ internal open class MutableBigInteger private constructor(
                 return
             }
             sum = (this.value[x + this.offset].toLong() and LONG_MASK) + carry
-            result[rstart--] = sum.toInt()
+            result[rstart] = sum.toInt()
+            rstart -= 1
             carry = sum.ushr(32)
         }
         while (y > 0) {
             y -= 1
             val bval = if (y + addend.offset < addend.value.size) addend.value[y + addend.offset] else 0
             sum = (bval.toLong() and LONG_MASK) + carry
-            result[rstart--] = sum.toInt()
+            result[rstart] = sum.toInt()
+            rstart -= 1
             carry = sum.ushr(32)
         }
 
         if (carry > 0) { // Result must grow in length
-            resultLen++
+            resultLen += 1
             if (result.size < resultLen) {
                 val temp = IntArray(resultLen)
                 // Result one word longer from carry-out; copy low-order
@@ -2075,14 +2082,14 @@ internal open class MutableBigInteger private constructor(
         this.value = result
         this.intLen = resultLen
         this.offset = result.size - resultLen
-    }
+    } // private fun addShifted(addend: MutableBigInteger, n: Int)
 
     /**
      * Like [.addShifted] but `this.intLen` must
      * not be greater than `n`. In other words, concatenates `this`
      * and `addend`.
      */
-    internal fun addDisjoint(addend: MutableBigInteger, n: Int) {
+    private fun addDisjoint(addend: MutableBigInteger, n: Int) {
         if (addend.isZero()) {
             return
         }
@@ -2120,7 +2127,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Adds the low `n` ints of `addend`.
      */
-    internal fun addLower(addend: MutableBigInteger, n: Int) {
+    private fun addLower(addend: MutableBigInteger, n: Int) {
         val a = MutableBigInteger(addend)
         if (a.offset + a.intLen >= n) {
             a.offset = a.offset + a.intLen - n
@@ -2129,6 +2136,5 @@ internal open class MutableBigInteger private constructor(
         a.normalize()
         add(a)
     }
-
 
 }
