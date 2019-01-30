@@ -1209,6 +1209,17 @@ internal constructor(
                 hi0 < hi1
             } else lo0 + Long.MIN_VALUE < lo1 + Long.MIN_VALUE
         }
+
+        private fun compareInCompareMagnitude(xs: Long, ys: Long, sdiff: Long): Pair<Boolean, Long> {
+            if (sdiff > Int.MAX_VALUE) {
+                return Pair(false, xs)
+            }
+            if (xs == INFLATED) {
+                return if (ys == INFLATED) Pair(true, xs) else Pair(false, xs)
+            }
+
+            return if (xs == INFLATED && ys == INFLATED) Pair(true, xs) else Pair(false, xs)
+        }
     } // companion object
 
     override fun toByte(): Byte {
@@ -1479,24 +1490,23 @@ internal constructor(
             val yae = other.precision().toLong() - other.scale     // [-1]
             if (xae < yae)
                 return -1
-            if (xae > yae)
+            if (xae > yae) {
                 return 1
-            var rb: BigInteger? = null
+            }
+            val rb: BigInteger?
             if (sdiff < 0) {
                 // The cases sdiff <= Integer.MIN_VALUE intentionally fall through.
-                if (sdiff > Int.MIN_VALUE &&
-                    (xs == INFLATED || (xs = longMultiplyPowerTen(xs, (-sdiff).toInt())) == INFLATED) &&
-                    ys == INFLATED
-                ) {
+                val result = compareInCompareMagnitude(xs, ys, sdiff)
+                xs = result.second
+                if (result.first) {
                     rb = bigMultiplyPowerTen((-sdiff).toInt())
                     return rb.compareMagnitude(other.intVal!!)
                 }
             } else { // sdiff > 0
                 // The cases sdiff > Integer.MAX_VALUE intentionally fall through.
-                if (sdiff <= Int.MAX_VALUE &&
-                    (ys == INFLATED || (ys = longMultiplyPowerTen(ys, sdiff.toInt())) == INFLATED) &&
-                    xs == INFLATED
-                ) {
+                val result = compareInCompareMagnitude(ys, xs, sdiff)
+                ys = result.second
+                if (result.first) {
                     rb = other.bigMultiplyPowerTen(sdiff.toInt())
                     return this.intVal!!.compareMagnitude(rb)
                 }
@@ -1508,7 +1518,7 @@ internal constructor(
             1
         else
             this.intVal!!.compareMagnitude(other.intVal!!)
-    }
+    } // private fun compareMagnitude(other: BigDecimal): Int
 
     /**
      * Compares this `BigDecimal` with the specified
