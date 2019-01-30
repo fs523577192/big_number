@@ -1,5 +1,5 @@
 /*
- * Migrated from the source code of OpenJDK/jdk8 by Wu Yuping
+ * Migrated from the source code of OpenJDK/jdk11 by Wu Yuping
  *
  * Copyright (c) 1999, 2013, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
@@ -28,6 +28,10 @@
  * Portions Copyright IBM Corporation, 2001. All Rights Reserved.
  */
 package org.firas.math
+
+import org.firas.lang.Character
+import org.firas.util.Integers
+import kotlin.math.absoluteValue
 
 /**
  * Immutable, arbitrary-precision signed decimal numbers.  A
@@ -215,13 +219,1514 @@ package org.firas.math
  * @author  Sergey V. Kuksenko
  * @author  Wu Yuping
  */
-class BigDecimal {
+class BigDecimal
+/**
+ * Trusted package private constructor.
+ * Trusted simply means if val is INFLATED, intVal could not be null and
+ * if intVal is null, val could not be INFLATED.
+ */
+internal constructor(
+    /**
+     * The unscaled value of this BigDecimal, as returned by [ ][.unscaledValue].
+     *
+     * @serial
+     * @see .unscaledValue
+     */
+    private val intVal: BigInteger?,
+
+    /**
+     * If the absolute value of the significand of this BigDecimal is
+     * less than or equal to `Long.MAX_VALUE`, the value can be
+     * compactly stored in this field and used in computations.
+     */
+    // @kotlin.jvm.Transient
+    private val intCompact: Long,
+
+    /**
+     * The scale of this BigDecimal, as returned by [.scale].
+     *
+     * @serial
+     * @see .scale
+     */
+    private val scale: Int, // Note: this may have any value, so
+    // calculations must be done in longs
+
+    /**
+     * The number of decimal digits in this BigDecimal, or 0 if the
+     * number of digits are not known (lookaside information).  If
+     * nonzero, the value is guaranteed correct.  Use the precision()
+     * method to obtain and set the value if it might be 0.  This
+     * field is mutable until set nonzero.
+     *
+     * @since  1.5
+     */
+    // @kotlin.jvm.Transient
+    private var precision: Int
+): Number(), Comparable<BigDecimal> {
+    /**
+     * Used to store the canonical string representation, if computed.
+     */
+    // @kotlin.jvm.Transient
+    private val stringCache: String? = null
+
+    /**
+     * Translates a `BigInteger` into a `BigDecimal`.
+     * The scale of the `BigDecimal` is zero.
+     *
+     * @param intVal `BigInteger` value to be converted to
+     * `BigDecimal`.
+     */
+    constructor(intVal: BigInteger): this(intVal, compactValFor(intVal), 0, 0)
+
+    /**
+     * Translates a `BigInteger` unscaled value and an
+     * `int` scale into a `BigDecimal`.  The value of
+     * the `BigDecimal` is
+     * <tt>(unscaledVal &times; 10<sup>-scale</sup>)</tt>.
+     *
+     * @param unscaledVal unscaled value of the {@code BigDecimal}.
+     * @param scale scale of the `BigDecimal`.
+     */
+    constructor(unscaledVal: BigInteger, scale: Int): this(unscaledVal, compactValFor(unscaledVal), scale, 0)
+
+    /**
+     * Translates an `Int` into a `BigDecimal`. The
+     * scale of the `BigDecimal` is zero.
+     *
+     * @param intVal `Int` value to be converted to
+     * `BigDecimal`
+     * @since Java 1.5
+     */
+    constructor(intVal: Int): this(null, intVal.toLong(), 0, 0)
+
+    /**
+     * Translates an `Long` into a `BigDecimal`. The
+     * scale of the `BigDecimal` is zero.
+     *
+     * @param longVal `Long` value to be converted to
+     * `BigDecimal`
+     * @since Java 1.5
+     */
+    constructor(longVal: Long): this(if (INFLATED == longVal) INFLATED_BIGINT else null, longVal, 0, 0)
 
     companion object {
+        // ----==== Static Factory Methods ====----
+        /**
+         * Translates a `long` unscaled value and an
+         * `int` scale into a `BigDecimal`.  This
+         * &quot;static factory method&quot; is provided in preference to
+         * a (`long`, `int`) constructor because it
+         * allows for reuse of frequently used `BigDecimal` values..
+         *
+         * @param unscaledVal unscaled value of the `BigDecimal`.
+         * @param scale scale of the `BigDecimal`.
+         * @return a `BigDecimal` whose value is
+         * <tt>(unscaledVal  10<sup>-scale</sup>)</tt>.
+         */
+        fun valueOf(unscaledVal: Long, scale: Int): BigDecimal {
+            if (scale == 0)
+                return valueOf(unscaledVal)
+            else if (unscaledVal == 0L) {
+                return zeroValueOf(scale)
+            }
+            return BigDecimal(
+                if (unscaledVal == INFLATED)
+                    INFLATED_BIGINT
+                else
+                    null,
+                unscaledVal, scale, 0
+            )
+        }
+
+        /**
+         * Translates a `long` value into a `BigDecimal`
+         * with a scale of zero.  This &quot;static factory method&quot;
+         * is provided in preference to a (`long`) constructor
+         * because it allows for reuse of frequently used
+         * `BigDecimal` values.
+         *
+         * @param longVal value of the `BigDecimal`.
+         * @return a `BigDecimal` whose value is `val`.
+         */
+        fun valueOf(longVal: Long): BigDecimal {
+            if (longVal >= 0 && longVal < zeroThroughTen.size)
+                return zeroThroughTen[longVal.toInt()]
+            else if (longVal != INFLATED)
+                return BigDecimal(null, longVal, 0, 0)
+            return BigDecimal(INFLATED_BIGINT, longVal, 0, 0)
+        }
+
+        internal fun valueOf(unscaledVal: Long, scale: Int, prec: Int): BigDecimal {
+            if (scale == 0 && unscaledVal >= 0 && unscaledVal < zeroThroughTen.size) {
+                return zeroThroughTen[unscaledVal.toInt()]
+            } else if (unscaledVal == 0L) {
+                return zeroValueOf(scale)
+            }
+            return BigDecimal(
+                if (unscaledVal == INFLATED) INFLATED_BIGINT else null,
+                unscaledVal, scale, prec
+            )
+        }
+
+        internal fun valueOf(intVal: BigInteger, scale: Int, prec: Int): BigDecimal {
+            val intCompact = compactValFor(intVal)
+            if (intCompact == 0L) {
+                return zeroValueOf(scale)
+            } else if (scale == 0 && intCompact >= 0 && intCompact < zeroThroughTen.size) {
+                return zeroThroughTen[intCompact.toInt()]
+            }
+            return BigDecimal(intVal, intCompact, scale, prec)
+        }
+
+        internal fun zeroValueOf(scale: Int): BigDecimal {
+            return if (scale >= 0 && scale < ZERO_SCALED_BY.size)
+                ZERO_SCALED_BY[scale]
+            else
+                BigDecimal(BigInteger.ZERO, 0, scale, 1)
+        }
+
+        /* Appease the serialization gods */
+        private const val serialVersionUID = 6108874887143696463L
+
         /**
          * Sentinel value for {@link #intCompact} indicating the
          * significand information is only available from {@code intVal}.
          */
-        val INFLATED = Long.MIN_VALUE
+        internal const val INFLATED = Long.MIN_VALUE
+
+        private val INFLATED_BIGINT = BigInteger.valueOf(INFLATED)
+
+        // All 18-digit base ten strings fit into a long; not all 19-digit
+        // strings will
+        private const val MAX_COMPACT_DIGITS = 18
+
+        // Cache of common small BigDecimal values.
+        private val zeroThroughTen = arrayOf(
+            BigDecimal(BigInteger.ZERO, 0, 0, 1),
+            BigDecimal(BigInteger.ONE, 1, 0, 1),
+            BigDecimal(BigInteger.valueOf(2), 2, 0, 1),
+            BigDecimal(BigInteger.valueOf(3), 3, 0, 1),
+            BigDecimal(BigInteger.valueOf(4), 4, 0, 1),
+            BigDecimal(BigInteger.valueOf(5), 5, 0, 1),
+            BigDecimal(BigInteger.valueOf(6), 6, 0, 1),
+            BigDecimal(BigInteger.valueOf(7), 7, 0, 1),
+            BigDecimal(BigInteger.valueOf(8), 8, 0, 1),
+            BigDecimal(BigInteger.valueOf(9), 9, 0, 1),
+            BigDecimal(BigInteger.TEN, 10, 0, 2)
+        )
+
+        // Cache of zero scaled by 0 - 15
+        private val ZERO_SCALED_BY = arrayOf(
+            zeroThroughTen[0],
+            BigDecimal(BigInteger.ZERO, 0, 1, 1),
+            BigDecimal(BigInteger.ZERO, 0, 2, 1),
+            BigDecimal(BigInteger.ZERO, 0, 3, 1),
+            BigDecimal(BigInteger.ZERO, 0, 4, 1),
+            BigDecimal(BigInteger.ZERO, 0, 5, 1),
+            BigDecimal(BigInteger.ZERO, 0, 6, 1),
+            BigDecimal(BigInteger.ZERO, 0, 7, 1),
+            BigDecimal(BigInteger.ZERO, 0, 8, 1),
+            BigDecimal(BigInteger.ZERO, 0, 9, 1),
+            BigDecimal(BigInteger.ZERO, 0, 10, 1),
+            BigDecimal(BigInteger.ZERO, 0, 11, 1),
+            BigDecimal(BigInteger.ZERO, 0, 12, 1),
+            BigDecimal(BigInteger.ZERO, 0, 13, 1),
+            BigDecimal(BigInteger.ZERO, 0, 14, 1),
+            BigDecimal(BigInteger.ZERO, 0, 15, 1)
+        )
+
+        /**
+         * Powers of 10 which can be represented exactly in `double`.
+         */
+        private val double10pow = doubleArrayOf(
+            1.0e0, 1.0e1, 1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7, 1.0e8, 1.0e9,
+            1.0e10, 1.0e11, 1.0e12, 1.0e13, 1.0e14, 1.0e15, 1.0e16, 1.0e17, 1.0e18, 1.0e19,
+            1.0e20, 1.0e21, 1.0e22
+        )
+
+        /**
+         * Powers of 10 which can be represented exactly in `float`.
+         */
+        private val float10pow =
+            floatArrayOf(1.0e0f, 1.0e1f, 1.0e2f, 1.0e3f, 1.0e4f, 1.0e5f, 1.0e6f, 1.0e7f, 1.0e8f, 1.0e9f, 1.0e10f)
+
+        // Half of Long.MIN_VALUE & Long.MAX_VALUE.
+        private const val HALF_LONG_MAX_VALUE = Long.MAX_VALUE / 2
+        private const val HALF_LONG_MIN_VALUE = Long.MIN_VALUE / 2
+
+        private val LONG_TEN_POWERS_TABLE = longArrayOf(
+            1, // 0 / 10^0
+            10, // 1 / 10^1
+            100, // 2 / 10^2
+            1000, // 3 / 10^3
+            10000, // 4 / 10^4
+            100000, // 5 / 10^5
+            1000000, // 6 / 10^6
+            10000000, // 7 / 10^7
+            100000000, // 8 / 10^8
+            1000000000, // 9 / 10^9
+            10000000000L, // 10 / 10^10
+            100000000000L, // 11 / 10^11
+            1000000000000L, // 12 / 10^12
+            10000000000000L, // 13 / 10^13
+            100000000000000L, // 14 / 10^14
+            1000000000000000L, // 15 / 10^15
+            10000000000000000L, // 16 / 10^16
+            100000000000000000L, // 17 / 10^17
+            1000000000000000000L   // 18 / 10^18
+        )
+
+        private var BIG_TEN_POWERS_TABLE = arrayOf(
+            BigInteger.ONE,
+            BigInteger.valueOf(10),
+            BigInteger.valueOf(100),
+            BigInteger.valueOf(1000),
+            BigInteger.valueOf(10000),
+            BigInteger.valueOf(100000),
+            BigInteger.valueOf(1000000),
+            BigInteger.valueOf(10000000),
+            BigInteger.valueOf(100000000),
+            BigInteger.valueOf(1000000000),
+            BigInteger.valueOf(10000000000L),
+            BigInteger.valueOf(100000000000L),
+            BigInteger.valueOf(1000000000000L),
+            BigInteger.valueOf(10000000000000L),
+            BigInteger.valueOf(100000000000000L),
+            BigInteger.valueOf(1000000000000000L),
+            BigInteger.valueOf(10000000000000000L),
+            BigInteger.valueOf(100000000000000000L),
+            BigInteger.valueOf(1000000000000000000L)
+        )
+
+        private val BIG_TEN_POWERS_TABLE_INITLEN = BIG_TEN_POWERS_TABLE.size
+        private val BIG_TEN_POWERS_TABLE_MAX = 16 * BIG_TEN_POWERS_TABLE_INITLEN
+
+        private val THRESHOLDS_TABLE = longArrayOf(
+            Long.MAX_VALUE, // 0
+            Long.MAX_VALUE / 10L, // 1
+            Long.MAX_VALUE / 100L, // 2
+            Long.MAX_VALUE / 1000L, // 3
+            Long.MAX_VALUE / 10000L, // 4
+            Long.MAX_VALUE / 100000L, // 5
+            Long.MAX_VALUE / 1000000L, // 6
+            Long.MAX_VALUE / 10000000L, // 7
+            Long.MAX_VALUE / 100000000L, // 8
+            Long.MAX_VALUE / 1000000000L, // 9
+            Long.MAX_VALUE / 10000000000L, // 10
+            Long.MAX_VALUE / 100000000000L, // 11
+            Long.MAX_VALUE / 1000000000000L, // 12
+            Long.MAX_VALUE / 10000000000000L, // 13
+            Long.MAX_VALUE / 100000000000000L, // 14
+            Long.MAX_VALUE / 1000000000000000L, // 15
+            Long.MAX_VALUE / 10000000000000000L, // 16
+            Long.MAX_VALUE / 100000000000000000L, // 17
+            Long.MAX_VALUE / 1000000000000000000L // 18
+        )
+
+        // ----==== Constants ====----
+        /**
+         * The value 0, with a scale of 0.
+         *
+         * @since  1.5
+         */
+        val ZERO = zeroThroughTen[0]
+
+        /**
+         * The value 1, with a scale of 0.
+         *
+         * @since  1.5
+         */
+        val ONE = zeroThroughTen[1]
+
+        /**
+         * The value 10, with a scale of 0.
+         *
+         * @since  1.5
+         */
+        val TEN = zeroThroughTen[10]
+
+        private fun adjustScale(scale: Int, exp: Long): Int {
+            var scl = scale
+            val adjustedScale = scl - exp
+            if (adjustedScale > Int.MAX_VALUE || adjustedScale < Int.MIN_VALUE) {
+                throw NumberFormatException("Scale out of range.")
+            }
+            scl = adjustedScale.toInt()
+            return scl
+        }
+
+        /*
+         * parse exponent
+         */
+        private fun parseExp(chars: CharArray, offset: Int, length: Int): Long {
+            var offset = offset
+            var len = length
+            var exp: Long = 0
+            offset++
+            var c = chars[offset]
+            len--
+            val negexp = c == '-'
+            // optional sign
+            if (negexp || c == '+') {
+                offset++
+                c = chars[offset]
+                len--
+            }
+            if (len <= 0) {
+                // no exponent digits
+                throw NumberFormatException()
+            }
+            // skip leading zeros in the exponent
+            while (len > 10 && (c == '0' || Character.digit(c, 10) == 0)) {
+                offset++
+                c = chars[offset]
+                len--
+            }
+            if (len > 10) {
+                // too many nonzero exponent digits
+                throw NumberFormatException()
+            }
+            // c now holds first digit of exponent
+            while (true) {
+                val v: Int
+                if (c in '0'..'9') {
+                    v = c - '0'
+                } else {
+                    v = Character.digit(c, 10)
+                    if (v < 0) {
+                        // not a digit
+                        throw NumberFormatException()
+                    }
+                }
+                exp = exp * 10 + v
+                if (len == 1)
+                    break // that was final character
+                offset++
+                c = chars[offset]
+                len--
+            }
+            if (negexp)
+            // apply sign
+                exp = -exp
+            return exp
+        } // private fun parseExp(chars: CharArray, offset: Int, length: Int): Long
+
+        /**
+         * Return 10 to the power n, as a `BigInteger`.
+         *
+         * @param  n the power of ten to be returned (>=0)
+         * @return a `BigInteger` with the value (10<sup>n</sup>)
+         */
+        private fun bigTenToThe(n: Int): BigInteger {
+            if (n < 0) {
+                return BigInteger.ZERO
+            }
+            if (n < BIG_TEN_POWERS_TABLE_MAX) {
+                val pows = BIG_TEN_POWERS_TABLE
+                return if (n < pows.size)
+                    pows[n]
+                else
+                    expandBigIntegerTenPowers(n)
+            }
+
+            return BigInteger.TEN.pow(n)
+        }
+
+        /**
+         * Expand the BIG_TEN_POWERS_TABLE array to contain at least 10**n.
+         *
+         * @param n the power of ten to be returned (>=0)
+         * @return a `BigDecimal` with the value (10<sup>n</sup>) and
+         * in the meantime, the BIG_TEN_POWERS_TABLE array gets
+         * expanded to the size greater than n.
+         */
+        // TODO: synchronized (BigDecimal::class)
+        private fun expandBigIntegerTenPowers(n: Int): BigInteger {
+            var pows = BIG_TEN_POWERS_TABLE
+            val curLen = pows.size
+            // The following comparison and the above synchronized statement is
+            // to prevent multiple threads from expanding the same array.
+            if (curLen <= n) {
+                var newLen = curLen shl 1
+                while (newLen <= n) {
+                    newLen = newLen shl 1
+                }
+                pows = Array(newLen) {
+                    if (it < curLen) pows[it] else BigInteger.TEN
+                }
+                for (i in curLen until newLen) {
+                    // pows[i] is BigInteger.TEN now
+                    pows[i] *= pows[i - 1]
+                }
+                // Based on the following facts:
+                // 1. pows is a private local varible;
+                // 2. the following store is a volatile store.
+                // the newly created array elements can be safely published.
+                BIG_TEN_POWERS_TABLE = pows
+            }
+            return pows[n]
+        }
+
+        /**
+         * Compute val * 10 ^ n; return this product if it is
+         * representable as a long, INFLATED otherwise.
+         */
+        private fun longMultiplyPowerTen(longVal: Long, n: Int): Long {
+            if (longVal == 0L || n <= 0) {
+                return longVal
+            }
+            val tab = LONG_TEN_POWERS_TABLE
+            val bounds = THRESHOLDS_TABLE
+            if (n < tab.size && n < bounds.size) {
+                val tenpower = tab[n]
+                if (longVal == 1L)
+                    return tenpower
+                if (longVal.absoluteValue <= bounds[n])
+                    return longVal * tenpower
+            }
+            return INFLATED
+        }
+
+        /**
+         * Match the scales of two `BigDecimal`s to align their
+         * least significant digits.
+         *
+         *
+         * If the scales of bigDecimals[0] and bigDecimals[1] differ, rescale
+         * (non-destructively) the lower-scaled `BigDecimal` so
+         * they match.  That is, the lower-scaled reference will be
+         * replaced by a reference to a new object with the same scale as
+         * the other `BigDecimal`.
+         *
+         * @param  bigDecimals array of two elements referring to the two
+         * `BigDecimal`s to be aligned.
+         *
+        private fun matchScale(bigDecimals: Array<BigDecimal>) {
+            if (bigDecimals[0].scale == bigDecimals[1].scale) {
+                return
+            } else if (bigDecimals[0].scale < bigDecimals[1].scale) {
+                bigDecimals[0] = bigDecimals[0].setScale(bigDecimals[1].scale, RoundingMode.UNNECESSARY)
+            } else if (bigDecimals[1].scale < bigDecimals[0].scale) {
+                bigDecimals[1] = bigDecimals[1].setScale(bigDecimals[0].scale, RoundingMode.UNNECESSARY)
+            }
+        }
+        */
+
+        /**
+         * Returns the length of the absolute value of a `long`, in decimal
+         * digits.
+         *
+         * @param x the `long`
+         * @return the length of the unscaled value, in deciaml digits.
+         */
+        fun longDigitLength(x: Long): Int {
+            var x = x
+            /*
+             * As described in "Bit Twiddling Hacks" by Sean Anderson,
+             * (http://graphics.stanford.edu/~seander/bithacks.html)
+             * integer log 10 of x is within 1 of (1233/4096)* (1 +
+             * integer log 2 of x). The fraction 1233/4096 approximates
+             * log10(2). So we first do a version of log2 (a variant of
+             * Long class with pre-checks and opposite directionality) and
+             * then scale and check against powers table. This is a little
+             * simpler in present context than the version in Hacker's
+             * Delight sec 11-4. Adding one to bit length allows comparing
+             * downward from the LONG_TEN_POWERS_TABLE that we need
+             * anyway.
+             */
+            if (x == BigDecimal.INFLATED) {
+                throw AssertionError()
+            }
+            if (x < 0) {
+                x = -x
+            }
+            if (x < 10) {
+                // must screen for 0, might as well 10
+                return 1
+            }
+            val r = ((64 - Integers.numberOfLeadingZeros(x) + 1) * 1233).ushr(12)
+            val tab = LONG_TEN_POWERS_TABLE
+            // if r >= length, must have max possible digits for long
+            return if (r >= tab.size || x < tab[r]) r else r + 1
+        }
+
+        /**
+         * Returns the length of the absolute value of a BigInteger, in
+         * decimal digits.
+         *
+         * @param b the BigInteger
+         * @return the length of the unscaled value, in decimal digits
+         */
+        private fun bigDigitLength(b: BigInteger): Int {
+            /*
+         * Same idea as the long version, but we need a better
+         * approximation of log10(2). Using 646456993/2^31
+         * is accurate up to max possible reported bitLength.
+         */
+            if (b.signum == 0) {
+                return 1
+            }
+            val r = ((b.bitLength().toLong() + 1) * 646456993).ushr(31).toInt()
+            return if (b.compareMagnitude(bigTenToThe(r)) < 0) r else r + 1
+        }
+
+        /**
+         * Returns the compact value for given `BigInteger`, or
+         * INFLATED if too big. Relies on internal representation of
+         * `BigInteger`.
+         */
+        private fun compactValFor(b: BigInteger): Long {
+            val m = b.mag
+            val len = m.size
+            if (len == 0) {
+                return 0
+            }
+            val d = m[0]
+            if (len > 2 || len == 2 && d < 0)
+                return INFLATED
+
+            val u = if (len == 2)
+                (m[1].toLong() and BigInteger.LONG_MASK) + (d.toLong() shl 32)
+            else
+                d.toLong() and BigInteger.LONG_MASK
+            return if (b.signum < 0) -u else u
+        }
+
+        private fun longCompareMagnitude(a: Long, b: Long): Int {
+            val x = a.absoluteValue
+            val y = b.absoluteValue
+            return if (x < y) -1 else if (x == y) 0 else 1
+        }
+
+        private fun saturateLong(s: Long): Int {
+            val i = s.toInt()
+            return if (s == i.toLong()) i else if (s < 0) Int.MIN_VALUE else Int.MAX_VALUE
+        }
+
+        /* the same as checkScale where value!=0 */
+        private fun checkScaleNonZero(longVal: Long): Int {
+            val asInt = longVal.toInt()
+            if (asInt.toLong() != longVal) {
+                throw ArithmeticException(if (asInt > 0) "Underflow" else "Overflow")
+            }
+            return asInt
+        }
+
+        private fun checkScale(intCompact: Long, longVal: Long): Int {
+            var asInt = longVal.toInt()
+            if (asInt.toLong() != longVal) {
+                asInt = if (longVal > Int.MAX_VALUE) Int.MAX_VALUE else Int.MIN_VALUE
+                if (intCompact != 0L) {
+                    throw ArithmeticException(if (asInt > 0) "Underflow" else "Overflow")
+                }
+            }
+            return asInt
+        }
+
+        private fun checkScale(intVal: BigInteger, longVal: Long): Int {
+            var asInt = longVal.toInt()
+            if (asInt.toLong() != longVal) {
+                asInt = if (longVal > Int.MAX_VALUE) Int.MAX_VALUE else Int.MIN_VALUE
+                if (intVal.signum() != 0) {
+                    throw ArithmeticException(if (asInt > 0) "Underflow" else "Overflow")
+                }
+            }
+            return asInt
+        }
+
+        /**
+         * Shared logic of need increment computation.
+         */
+        private fun commonNeedIncrement(
+            roundingMode: RoundingMode, qsign: Int,
+            cmpFracHalf: Int, oddQuot: Boolean
+        ): Boolean {
+            when (roundingMode) {
+                RoundingMode.UNNECESSARY -> throw ArithmeticException("Rounding necessary")
+
+                RoundingMode.UP // Away from zero
+                -> return true
+
+                RoundingMode.DOWN // Towards zero
+                -> return false
+
+                RoundingMode.CEILING // Towards +infinity
+                -> return qsign > 0
+
+                RoundingMode.FLOOR // Towards -infinity
+                -> return qsign < 0
+
+                else // Some kind of half-way rounding
+                -> {
+                    if (roundingMode < RoundingMode.HALF_UP || roundingMode > RoundingMode.HALF_EVEN) {
+                        throw AssertionError("Unexpected rounding mode: $roundingMode")
+                    }
+
+                    if (cmpFracHalf < 0)
+                    // We're closer to higher digit
+                        return false
+                    else if (cmpFracHalf > 0)
+                    // We're closer to lower digit
+                        return true
+                    else { // half-way
+                        if (cmpFracHalf != 0) {
+                            throw AssertionError()
+                        }
+
+                        return when (roundingMode) {
+                            RoundingMode.HALF_DOWN -> false
+                            RoundingMode.HALF_UP -> true
+                            RoundingMode.HALF_EVEN -> oddQuot
+                            else -> throw AssertionError("Unexpected rounding mode$roundingMode")
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Tests if quotient has to be incremented according the roundingMode
+         */
+        private fun needIncrement(
+            ldivisor: Long, roundingMode: RoundingMode,
+            qsign: Int, q: Long, r: Long
+        ): Boolean {
+            if (r == 0L) {
+                throw AssertionError()
+            }
+
+            val cmpFracHalf = if (r <= HALF_LONG_MIN_VALUE || r > HALF_LONG_MAX_VALUE) {
+                1 // 2 * r can't fit into long
+            } else {
+                longCompareMagnitude(2 * r, ldivisor)
+            }
+
+            return commonNeedIncrement(roundingMode, qsign, cmpFracHalf, q and 1L != 0L)
+        }
+
+        /*
+         * returns INFLATED if oveflow
+         */
+        private fun add(xs: Long, ys: Long): Long {
+            val sum = xs + ys
+            // See "Hacker's Delight" section 2-12 for explanation of
+            // the overflow test.
+            return if (sum xor xs and (sum xor ys) >= 0L) { // not overflowed
+                sum
+            } else INFLATED
+        }
+
+        private fun add(xs: Long, ys: Long, scale: Int): BigDecimal {
+            val sum = add(xs, ys)
+            return if (sum != INFLATED) BigDecimal.valueOf(sum, scale) else BigDecimal(
+                BigInteger.valueOf(xs).add(ys),
+                scale
+            )
+        }
+
+        private fun add(xs: Long, scale1: Int, ys: Long, scale2: Int): BigDecimal {
+            val sdiff = scale1.toLong() - scale2
+            if (sdiff == 0L) {
+                return add(xs, ys, scale1)
+            } else if (sdiff < 0) {
+                val raise = checkScale(xs, -sdiff)
+                val scaledX = longMultiplyPowerTen(xs, raise)
+                if (scaledX != INFLATED) {
+                    return add(scaledX, ys, scale2)
+                } else {
+                    val bigsum = bigMultiplyPowerTen(xs, raise).add(ys)
+                    return if (xs xor ys >= 0)
+                    // same sign test
+                        BigDecimal(bigsum, INFLATED, scale2, 0)
+                    else
+                        valueOf(bigsum, scale2, 0)
+                }
+            } else {
+                val raise = checkScale(ys, sdiff)
+                val scaledY = longMultiplyPowerTen(ys, raise)
+                if (scaledY != INFLATED) {
+                    return add(xs, scaledY, scale1)
+                } else {
+                    val bigsum = bigMultiplyPowerTen(ys, raise).add(xs)
+                    return if (xs xor ys >= 0)
+                        BigDecimal(bigsum, INFLATED, scale1, 0)
+                    else
+                        valueOf(bigsum, scale1, 0)
+                }
+            }
+        }
+
+        private fun add(xs: Long, scale1: Int, snd: BigInteger, scale2: Int): BigDecimal {
+            var snd = snd
+            var rscale = scale1
+            val sdiff = rscale.toLong() - scale2
+            val sameSigns = Integers.signum(xs) == snd.signum
+            val sum: BigInteger
+            if (sdiff < 0) {
+                val raise = checkScale(xs, -sdiff)
+                rscale = scale2
+                val scaledX = longMultiplyPowerTen(xs, raise)
+                if (scaledX == INFLATED) {
+                    sum = snd + bigMultiplyPowerTen(xs, raise)
+                } else {
+                    sum = snd.add(scaledX)
+                }
+            } else { //if (sdiff > 0) {
+                val raise = checkScale(snd, sdiff)
+                snd = bigMultiplyPowerTen(snd, raise)
+                sum = snd.add(xs)
+            }
+            return if (sameSigns)
+                BigDecimal(sum, INFLATED, rscale, 0)
+            else
+                valueOf(sum, rscale, 0)
+        }
+
+        private fun add(fst: BigInteger, scale1: Int, snd: BigInteger, scale2: Int): BigDecimal {
+            var fst = fst
+            var snd = snd
+            var rscale = scale1
+            val sdiff = rscale.toLong() - scale2
+            if (sdiff != 0L) {
+                if (sdiff < 0) {
+                    val raise = checkScale(fst, -sdiff)
+                    rscale = scale2
+                    fst = bigMultiplyPowerTen(fst, raise)
+                } else {
+                    val raise = checkScale(snd, sdiff)
+                    snd = bigMultiplyPowerTen(snd, raise)
+                }
+            }
+            val sum = fst + snd
+            return if (fst.signum == snd.signum)
+                BigDecimal(sum, INFLATED, rscale, 0)
+            else
+                valueOf(sum, rscale, 0)
+        }
+
+        private fun bigMultiplyPowerTen(value: Long, n: Int): BigInteger {
+            return if (n <= 0) BigInteger.valueOf(value) else bigTenToThe(n).multiply(value)
+        }
+
+        private fun bigMultiplyPowerTen(value: BigInteger, n: Int): BigInteger {
+            if (n <= 0) {
+                return value
+            }
+            return if (n < LONG_TEN_POWERS_TABLE.size) {
+                value.multiply(LONG_TEN_POWERS_TABLE[n])
+            } else value * bigTenToThe(n)
+        }
+
+        /*
+         * calculate divideAndRound for ldividend*10^raise / divisor
+         * when abs(dividend)==abs(divisor);
+         */
+        private fun roundedTenPower(qsign: Int, raise: Int, scale: Int, preferredScale: Int): BigDecimal {
+            if (scale > preferredScale) {
+                val diff = scale - preferredScale
+                return if (diff < raise) {
+                    scaledTenPow(raise - diff, qsign, preferredScale)
+                } else {
+                    valueOf(qsign.toLong(), scale - raise)
+                }
+            } else {
+                return scaledTenPow(raise, qsign, scale)
+            }
+        }
+
+        fun scaledTenPow(n: Int, sign: Int, scale: Int): BigDecimal {
+            return if (n < LONG_TEN_POWERS_TABLE.size)
+                valueOf(sign * LONG_TEN_POWERS_TABLE[n], scale)
+            else {
+                var unscaledVal = bigTenToThe(n)
+                if (sign == -1) {
+                    unscaledVal = unscaledVal.negate()
+                }
+                BigDecimal(unscaledVal, INFLATED, scale, n + 1)
+            }
+        }
+
+        private fun divWord(n: Long, dLong: Long): Long {
+            var r: Long
+            var q: Long
+            if (dLong == 1L) {
+                q = n.toInt().toLong()
+                return q and BigInteger.LONG_MASK
+            }
+            // Approximate the quotient and remainder
+            q = n.ushr(1) / dLong.ushr(1)
+            r = n - q * dLong
+
+            // Correct the approximation
+            while (r < 0) {
+                r += dLong
+                q--
+            }
+            while (r >= dLong) {
+                r -= dLong
+                q++
+            }
+            // n - q*dlong == r && 0 <= r <dLong, hence we're done.
+            return r shl 32 or (q and BigInteger.LONG_MASK)
+        }
+
+        private fun make64(hi: Long, lo: Long): Long {
+            return hi shl 32 or lo
+        }
+
+        private fun mulsub(u1: Long, u0: Long, v1: Long, v0: Long, q0: Long): Long {
+            val tmp = u0 - q0 * v0
+            return make64(u1 + tmp.ushr(32) - q0 * v1, tmp and BigInteger.LONG_MASK)
+        }
+
+        private fun unsignedLongCompare(one: Long, two: Long): Boolean {
+            return one + Long.MIN_VALUE > two + Long.MIN_VALUE
+        }
+
+        private fun unsignedLongCompareEq(one: Long, two: Long): Boolean {
+            return one + Long.MIN_VALUE >= two + Long.MIN_VALUE
+        }
+
+        // Compare Normalize dividend & divisor so that both fall into [0.1, 0.999...]
+        private fun compareMagnitudeNormalized(xs: Long, xscale: Int, ys: Long, yscale: Int): Int {
+            var xs = xs
+            var ys = ys
+            // assert xs!=0 && ys!=0
+            val sdiff = xscale - yscale
+            if (sdiff != 0) {
+                if (sdiff < 0) {
+                    xs = longMultiplyPowerTen(xs, -sdiff)
+                } else { // sdiff > 0
+                    ys = longMultiplyPowerTen(ys, sdiff)
+                }
+            }
+            return if (xs != INFLATED)
+                if (ys != INFLATED) longCompareMagnitude(xs, ys) else -1
+            else
+                1
+        }
+
+        // Compare Normalize dividend & divisor so that both fall into [0.1, 0.999...]
+        private fun compareMagnitudeNormalized(xs: Long, xscale: Int, ys: BigInteger, yscale: Int): Int {
+            // assert "ys can't be represented as long"
+            if (xs == 0L) {
+                return -1
+            }
+            val sdiff = xscale - yscale
+            if (sdiff < 0) {
+                if (longMultiplyPowerTen(xs, -sdiff) == INFLATED) {
+                    return bigMultiplyPowerTen(xs, -sdiff).compareMagnitude(ys)
+                }
+            }
+            return -1
+        }
+
+        // Compare Normalize dividend & divisor so that both fall into [0.1, 0.999...]
+        private fun compareMagnitudeNormalized(xs: BigInteger, xscale: Int, ys: BigInteger, yscale: Int): Int {
+            val sdiff = xscale - yscale
+            return if (sdiff < 0) {
+                bigMultiplyPowerTen(xs, -sdiff).compareMagnitude(ys)
+            } else { // sdiff >= 0
+                xs.compareMagnitude(bigMultiplyPowerTen(ys, sdiff))
+            }
+        }
+
+        private fun multiply(x: Long, y: Long): Long {
+            val product = x * y
+            val ax = x.absoluteValue
+            val ay = y.absoluteValue
+            return if ((ax or ay).ushr(31) == 0L || y == 0L || product / y == x) {
+                product
+            } else INFLATED
+        }
+
+        private fun multiply(x: Long, y: Long, scale: Int): BigDecimal {
+            val product = multiply(x, y)
+            return if (product != INFLATED) {
+                valueOf(product, scale)
+            } else BigDecimal(BigInteger.valueOf(x).multiply(y), INFLATED, scale, 0)
+        }
+
+        private fun multiply(x: Long, y: BigInteger, scale: Int): BigDecimal {
+            return if (x == 0L) {
+                zeroValueOf(scale)
+            } else BigDecimal(y.multiply(x), INFLATED, scale, 0)
+        }
+
+        private fun multiply(x: BigInteger, y: BigInteger, scale: Int): BigDecimal {
+            return BigDecimal(x * y, INFLATED, scale, 0)
+        }
+
+        private val LONGLONG_TEN_POWERS_TABLE = arrayOf(
+            longArrayOf(0L, -0x7538dcfb76180000L), //10^19
+            longArrayOf(0x5L, 0x6bc75e2d63100000L), //10^20
+            longArrayOf(0x36L, 0x35c9adc5dea00000L), //10^21
+            longArrayOf(0x21eL, 0x19e0c9bab2400000L), //10^22
+            longArrayOf(0x152dL, 0x02c7e14af6800000L), //10^23
+            longArrayOf(0xd3c2L, 0x1bcecceda1000000L), //10^24
+            longArrayOf(0x84595L, 0x161401484a000000L), //10^25
+            longArrayOf(0x52b7d2L, -0x2337f32d1c000000L), //10^26
+            longArrayOf(0x33b2e3cL, -0x602f7fc318000000L), //10^27
+            longArrayOf(0x204fce5eL, 0x3e25026110000000L), //10^28
+            longArrayOf(0x1431e0faeL, 0x6d7217caa0000000L), //10^29
+            longArrayOf(0xc9f2c9cd0L, 0x4674edea40000000L), //10^30
+            longArrayOf(0x7e37be2022L, -0x3f6eb4d980000000L), //10^31
+            longArrayOf(0x4ee2d6d415bL, -0x7a53107f00000000L), //10^32
+            longArrayOf(0x314dc6448d93L, 0x38c15b0a00000000L), //10^33
+            longArrayOf(0x1ed09bead87c0L, 0x378d8e6400000000L), //10^34
+            longArrayOf(0x13426172c74d82L, 0x2b878fe800000000L), //10^35
+            longArrayOf(0xc097ce7bc90715L, -0x4cb460f000000000L), //10^36
+            longArrayOf(0x785ee10d5da46d9L, 0x00f436a000000000L), //10^37
+            longArrayOf(0x4b3b4ca85a86c47aL, 0x098a224000000000L)
+        )//10^38
+
+        /*
+         * returns precision of 128-bit value
+         */
+        private fun precision(hi: Long, lo: Long): Int {
+            if (hi == 0L) {
+                if (lo >= 0) {
+                    return longDigitLength(lo)
+                }
+                return if (unsignedLongCompareEq(lo, LONGLONG_TEN_POWERS_TABLE[0][1])) 20 else 19
+                // 0x8AC7230489E80000L  = unsigned 2^19
+            }
+            val r = ((128 - Integers.numberOfLeadingZeros(hi) + 1) * 1233).ushr(12)
+            val idx = r - 19
+            return if (idx >= LONGLONG_TEN_POWERS_TABLE.size || longLongCompareMagnitude(
+                    hi, lo,
+                    LONGLONG_TEN_POWERS_TABLE[idx][0], LONGLONG_TEN_POWERS_TABLE[idx][1]
+                )
+            ) r else r + 1
+        }
+
+        /*
+         * returns true if 128 bit number <hi0,lo0> is less then <hi1,lo1>
+         * hi0 & hi1 should be non-negative
+         */
+        private fun longLongCompareMagnitude(hi0: Long, lo0: Long, hi1: Long, lo1: Long): Boolean {
+            return if (hi0 != hi1) {
+                hi0 < hi1
+            } else lo0 + Long.MIN_VALUE < lo1 + Long.MIN_VALUE
+        }
+    } // companion object
+
+    override fun toByte(): Byte {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun toChar(): Char {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun toDouble(): Double {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun toFloat(): Float {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun toInt(): Int {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun toLong(): Long {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun toShort(): Short {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    // ----==== Arithmetic Operations ====----
+    /**
+     * Returns a `BigDecimal` whose value is `(this +
+     * augend)`, and whose scale is `max(this.scale(),
+     * augend.scale())`.
+     *
+     * @param  augend value to be added to this `BigDecimal`.
+     * @return `this + augend`
+     */
+    operator fun plus(augend: BigDecimal): BigDecimal {
+        return if (this.intCompact != INFLATED) {
+            if (augend.intCompact != INFLATED) {
+                add(this.intCompact, this.scale, augend.intCompact, augend.scale)
+            } else {
+                add(this.intCompact, this.scale, augend.intVal!!, augend.scale)
+            }
+        } else {
+            if (augend.intCompact != INFLATED) {
+                add(augend.intCompact, augend.scale, this.intVal!!, this.scale)
+            } else {
+                add(this.intVal!!, this.scale, augend.intVal!!, augend.scale)
+            }
+        }
+    }
+
+    /**
+     * Returns a `BigDecimal` whose value is `(this -
+     * subtrahend)`, and whose scale is `max(this.scale(),
+     * subtrahend.scale())`.
+     *
+     * @param  subtrahend value to be subtracted from this `BigDecimal`.
+     * @return `this - subtrahend`
+     */
+    operator fun minus(subtrahend: BigDecimal): BigDecimal {
+        return if (this.intCompact != INFLATED) {
+            if (subtrahend.intCompact != INFLATED) {
+                add(this.intCompact, this.scale, -subtrahend.intCompact, subtrahend.scale)
+            } else {
+                add(this.intCompact, this.scale, subtrahend.intVal!!.negate(), subtrahend.scale)
+            }
+        } else {
+            if (subtrahend.intCompact != INFLATED) {
+                // Pair of subtrahend values given before pair of
+                // values from this BigDecimal to avoid need for
+                // method overloading on the specialized add method
+                add(-subtrahend.intCompact, subtrahend.scale, this.intVal!!, this.scale)
+            } else {
+                add(this.intVal!!, this.scale, subtrahend.intVal!!.negate(), subtrahend.scale)
+            }
+        }
+    }
+
+    /**
+     * Returns a `BigDecimal` whose value is <tt>(this
+     * multiplicand)</tt>, and whose scale is `(this.scale() +
+     * multiplicand.scale())`.
+     *
+     * @param  multiplicand value to be multiplied by this `BigDecimal`.
+     * @return `this * multiplicand`
+     */
+    operator fun times(multiplicand: BigDecimal): BigDecimal {
+        val productScale = checkScale(this.scale.toLong() + multiplicand.scale)
+        return if (this.intCompact != INFLATED) {
+            if (multiplicand.intCompact != INFLATED) {
+                multiply(this.intCompact, multiplicand.intCompact, productScale)
+            } else {
+                multiply(this.intCompact, multiplicand.intVal!!, productScale)
+            }
+        } else {
+            if (multiplicand.intCompact != INFLATED) {
+                multiply(multiplicand.intCompact, this.intVal!!, productScale)
+            } else {
+                multiply(this.intVal!!, multiplicand.intVal!!, productScale)
+            }
+        }
+    }
+
+    /**
+     * Returns a `BigDecimal` whose value is the absolute value
+     * of this `BigDecimal`, and whose scale is
+     * `this.scale()`.
+     *
+     * @return `abs(this)`
+     */
+    fun abs(): BigDecimal {
+        return if (signum() < 0) negate() else this
+    }
+
+    /**
+     * Returns a `BigDecimal` whose value is `(-this)`,
+     * and whose scale is `this.scale()`.
+     *
+     * @return `-this`.
+     */
+    fun negate(): BigDecimal {
+        return if (this.intCompact == INFLATED) {
+            BigDecimal(this.intVal!!.negate(), INFLATED, this.scale, this.precision)
+        } else {
+            valueOf(-this.intCompact, this.scale, this.precision)
+        }
+    }
+
+    /**
+     * Returns the signum function of this `BigDecimal`.
+     *
+     * @return -1, 0, or 1 as the value of this `BigDecimal`
+     * is negative, zero, or positive.
+     */
+    fun signum(): Int {
+        return if (this.intCompact != INFLATED)
+            (if (this.intCompact > 0) 1 else if (this.intCompact < 0) -1 else 1)
+        else
+            this.intVal!!.signum()
+    }
+
+    /**
+     * Returns the *scale* of this `BigDecimal`.  If zero
+     * or positive, the scale is the number of digits to the right of
+     * the decimal point.  If negative, the unscaled value of the
+     * number is multiplied by ten to the power of the negation of the
+     * scale.  For example, a scale of `-3` means the unscaled
+     * value is multiplied by 1000.
+     *
+     * @return the scale of this `BigDecimal`.
+     */
+    fun scale(): Int {
+        return this.scale
+    }
+
+    /**
+     * Returns the *precision* of this `BigDecimal`.  (The
+     * precision is the number of digits in the unscaled value.)
+     *
+     *
+     * The precision of a zero value is 1.
+     *
+     * @return the precision of this `BigDecimal`.
+     * @since  1.5
+     */
+    fun precision(): Int {
+        var result = this.precision
+        if (result == 0) {
+            val s = this.intCompact
+            result = if (s != INFLATED)
+                longDigitLength(s)
+            else
+                bigDigitLength(this.intVal!!)
+            this.precision = result
+        }
+        return result
+    }
+
+    /**
+     * Returns a `BigInteger` whose value is the *unscaled
+     * value* of this `BigDecimal`.  (Computes <tt>(this *
+     * 10<sup>this.scale()</sup>)</tt>.)
+     *
+     * @return the unscaled value of this `BigDecimal`.
+     * @since  1.2
+     */
+    fun unscaledValue(): BigInteger {
+        return this.inflated()
+    }
+
+    /**
+     * Returns a BigDecimal whose numerical value is equal to
+     * (`this` * 10<sup>n</sup>).  The scale of
+     * the result is `(this.scale() - n)`.
+     *
+     * @param n the exponent power of ten to scale by
+     * @return a BigDecimal whose numerical value is equal to
+     * (`this` * 10<sup>n</sup>)
+     * @throws ArithmeticException if the scale would be
+     * outside the range of a 32-bit integer.
+     *
+     * @since 1.5
+     */
+    fun scaleByPowerOfTen(n: Int): BigDecimal {
+        return BigDecimal(
+            intVal, intCompact,
+            checkScale(scale.toLong() - n), precision
+        )
+    }
+
+    /**
+     * Compares this `BigDecimal` with the specified
+     * `BigDecimal`.  Two `BigDecimal` objects that are
+     * equal in value but have a different scale (like 2.0 and 2.00)
+     * are considered equal by this method.  This method is provided
+     * in preference to individual methods for each of the six boolean
+     * comparison operators (&lt;, ==,
+     * &gt;, &gt;=, !=, &lt;=).  The
+     * suggested idiom for performing these comparisons is:
+     * `(x.compareTo(y)` &lt;*op*&gt; `0)`, where
+     * &lt;*op*&gt; is one of the six comparison operators.
+     *
+     * @param  other `BigDecimal` to which this `BigDecimal` is
+     * to be compared.
+     * @return -1, 0, or 1 as this `BigDecimal` is numerically
+     * less than, equal to, or greater than `val`.
+     */
+    override fun compareTo(other: BigDecimal): Int {
+        // Quick path for equal scale and non-inflated case.
+        if (this.scale == other.scale) {
+            val xs = this.intCompact
+            val ys = other.intCompact
+            if (xs != INFLATED && ys != INFLATED)
+                return if (xs != ys) (if (xs > ys) 1 else -1) else 0
+        }
+        val xsign = this.signum()
+        val ysign = other.signum()
+        if (xsign != ysign) {
+            return if (xsign > ysign) 1 else -1
+        }
+        if (xsign == 0) {
+            return 0
+        }
+        val cmp = compareMagnitude(other)
+        return if (xsign > 0) cmp else -cmp
+    }
+
+    /**
+     * Version of compareTo that ignores sign.
+     */
+    private fun compareMagnitude(other: BigDecimal): Int {
+        // Match scales, avoid unnecessary inflation
+        var ys = other.intCompact
+        var xs = this.intCompact
+        if (xs == 0L)
+            return if (ys == 0L) 0 else -1
+        if (ys == 0L)
+            return 1
+
+        val sdiff = this.scale.toLong() - other.scale
+        if (sdiff != 0L) {
+            // Avoid matching scales if the (adjusted) exponents differ
+            val xae = this.precision().toLong() - this.scale   // [-1]
+            val yae = other.precision().toLong() - other.scale     // [-1]
+            if (xae < yae)
+                return -1
+            if (xae > yae)
+                return 1
+            var rb: BigInteger? = null
+            if (sdiff < 0) {
+                // The cases sdiff <= Integer.MIN_VALUE intentionally fall through.
+                if (sdiff > Int.MIN_VALUE &&
+                    (xs == INFLATED || (xs = longMultiplyPowerTen(xs, (-sdiff).toInt())) == INFLATED) &&
+                    ys == INFLATED
+                ) {
+                    rb = bigMultiplyPowerTen((-sdiff).toInt())
+                    return rb.compareMagnitude(other.intVal!!)
+                }
+            } else { // sdiff > 0
+                // The cases sdiff > Integer.MAX_VALUE intentionally fall through.
+                if (sdiff <= Int.MAX_VALUE &&
+                    (ys == INFLATED || (ys = longMultiplyPowerTen(ys, sdiff.toInt())) == INFLATED) &&
+                    xs == INFLATED
+                ) {
+                    rb = other.bigMultiplyPowerTen(sdiff.toInt())
+                    return this.intVal!!.compareMagnitude(rb)
+                }
+            }
+        }
+        return if (xs != INFLATED)
+            if (ys != INFLATED) longCompareMagnitude(xs, ys) else -1
+        else if (ys != INFLATED)
+            1
+        else
+            this.intVal!!.compareMagnitude(other.intVal!!)
+    }
+
+    /**
+     * Compares this `BigDecimal` with the specified
+     * `Object` for equality.  Unlike [ ][.compareTo], this method considers two
+     * `BigDecimal` objects equal only if they are equal in
+     * value and scale (thus 2.0 is not equal to 2.00 when compared by
+     * this method).
+     *
+     * @param  other `Object` to which this `BigDecimal` is
+     * to be compared.
+     * @return `true` if and only if the specified `Object` is a
+     * `BigDecimal` whose value and scale are equal to this
+     * `BigDecimal`'s.
+     * @see .compareTo
+     * @see .hashCode
+     */
+    override fun equals(other: Any?): Boolean {
+        if (other !is BigDecimal) {
+            return false
+        }
+        if (other === this) {
+            return true
+        }
+        if (scale != other.scale) {
+            return false
+        }
+        val s = this.intCompact
+        var xs = other.intCompact
+        if (s != INFLATED) {
+            if (xs == INFLATED) {
+                xs = compactValFor(other.intVal!!)
+            }
+            return xs == s
+        } else if (xs != INFLATED) {
+            return xs == compactValFor(this.intVal!!)
+        }
+        return this.inflated() == other.inflated()
+    }
+
+    /**
+     * Returns the hash code for this `BigDecimal`.  Note that
+     * two `BigDecimal` objects that are numerically equal but
+     * differ in scale (like 2.0 and 2.00) will generally *not*
+     * have the same hash code.
+     *
+     * @return hash code for this `BigDecimal`.
+     * @see .equals
+     */
+    override fun hashCode(): Int {
+        return if (this.intCompact != INFLATED) {
+            val val2 = if (intCompact < 0) -intCompact else intCompact
+            val temp = (val2.ushr(32).toInt() * 31 + (val2 and BigInteger.LONG_MASK)).toInt()
+            31 * (if (intCompact < 0) -temp else temp) + scale
+        } else {
+            31 * intVal.hashCode() + scale
+        }
+    }
+
+    /**
+     * Returns the minimum of this `BigDecimal` and
+     * `other`.
+     *
+     * @param  other value with which the minimum is to be computed.
+     * @return the `BigDecimal` whose value is the lesser of this
+     * `BigDecimal` and `other`.  If they are equal,
+     * as defined by the [compareTo][.compareTo]
+     * method, `this` is returned.
+     * @see .compareTo
+     */
+    fun min(other: BigDecimal): BigDecimal {
+        return if (compareTo(other) <= 0) this else other
+    }
+
+    /**
+     * Returns the maximum of this `BigDecimal` and `other`.
+     *
+     * @param  other value with which the maximum is to be computed.
+     * @return the `BigDecimal` whose value is the greater of this
+     * `BigDecimal` and `other`.  If they are equal,
+     * as defined by the [compareTo][.compareTo]
+     * method, `this` is returned.
+     * @see .compareTo
+     */
+    fun max(other: BigDecimal): BigDecimal {
+        return if (compareTo(other) >= 0) this else other
+    }
+
+    /**
+     * Returns a string representation of this `BigDecimal`
+     * without an exponent field.  For values with a positive scale,
+     * the number of digits to the right of the decimal point is used
+     * to indicate scale.  For values with a zero or negative scale,
+     * the resulting string is generated as if the value were
+     * converted to a numerically equal value with zero scale and as
+     * if all the trailing zeros of the zero scale value were present
+     * in the result.
+     *
+     * The entire string is prefixed by a minus sign character '-'
+     * (<tt>'&#92;u002D'</tt>) if the unscaled value is less than
+     * zero. No sign character is prefixed if the unscaled value is
+     * zero or positive.
+     *
+     * Note that if the result of this method is passed to the
+     * [string constructor][.BigDecimal], only the
+     * numerical value of this `BigDecimal` will necessarily be
+     * recovered; the representation of the new `BigDecimal`
+     * may have a different scale.  In particular, if this
+     * `BigDecimal` has a negative scale, the string resulting
+     * from this method will have a scale of zero when processed by
+     * the string constructor.
+     *
+     * (This method behaves analogously to the `toString`
+     * method in 1.4 and earlier releases.)
+     *
+     * @return a string representation of this `BigDecimal`
+     * without an exponent field.
+     * @since 1.5
+     * @see .toString
+     * @see .toEngineeringString
+     */
+    fun toPlainString(): String {
+        if (this.scale == 0) {
+            return if (this.intCompact != INFLATED) {
+                intCompact.toString()
+            } else {
+                intVal.toString()
+            }
+        }
+        if (this.scale < 0) { // No decimal point
+            if (signum() == 0) {
+                return "0"
+            }
+            val tailingZeros = checkScaleNonZero(-(this.scale.toLong()))
+            val buf: StringBuilder
+            if (this.intCompact != INFLATED) {
+                buf = StringBuilder(20 + tailingZeros)
+                buf.append(this.intCompact)
+            } else {
+                val str = intVal.toString()
+                buf = StringBuilder(str.length + tailingZeros)
+                buf.append(str)
+            }
+            for (i in 0 until tailingZeros)
+                buf.append('0')
+            return buf.toString()
+        }
+        val str = if (this.intCompact != INFLATED) {
+            intCompact.absoluteValue.toString()
+        } else {
+            intVal!!.abs().toString()
+        }
+        return getValueString(signum(), str, scale)
+    }
+
+    /* Returns a digit.digit string */
+    private fun getValueString(signum: Int, intString: String, scale: Int): String {
+        /* Insert decimal point */
+        val insertionPoint = intString.length - scale
+        if (insertionPoint == 0) {  /* Point goes right before intVal */
+            return (if (signum < 0) "-0." else "0.") + intString
+        } else if (insertionPoint > 0) { /* Point goes inside intVal */
+            val buf = intString.substring(0, insertionPoint) + "." + intString.substring(insertionPoint)
+            return if (signum < 0) "-" + buf else buf
+        } else { /* We must insert zeros between point and intVal */
+            val buf = StringBuilder(3 - insertionPoint + intString.length)
+            buf.append(if (signum < 0) "-0." else "0.")
+            for (i in 0 until -insertionPoint) {
+                buf.append('0')
+            }
+            buf.append(intString)
+            return buf.toString()
+        }
+    }
+
+    /**
+     * Compute this * 10 ^ n.
+     * Needed mainly to allow special casing to trap zero value
+     */
+    private fun bigMultiplyPowerTen(n: Int): BigInteger {
+        if (n <= 0) {
+            return this.inflated()
+        }
+        return if (this.intCompact != INFLATED)
+            bigTenToThe(n).multiply(intCompact)
+        else
+            intVal!! * bigTenToThe(n)
+    }
+
+    /**
+     * Returns appropriate BigInteger from intVal field if intVal is
+     * null, i.e. the compact representation is in use.
+     */
+    private fun inflated(): BigInteger {
+        return intVal ?: BigInteger.valueOf(intCompact)
+    }
+
+    /**
+     * Check a scale for Underflow or Overflow.  If this BigDecimal is
+     * nonzero, throw an exception if the scale is outof range. If this
+     * is zero, saturate the scale to the extreme value of the right
+     * sign if the scale is out of range.
+     *
+     * @param longVal The new scale.
+     * @throws ArithmeticException (overflow or underflow) if the new
+     * scale is out of range.
+     * @return validated scale as an int.
+     */
+    private fun checkScale(longVal: Long): Int {
+        var asInt = longVal.toInt()
+        if (asInt.toLong() != longVal) {
+            asInt = if (longVal > Int.MAX_VALUE) Int.MAX_VALUE else Int.MIN_VALUE
+            if (this.intCompact != 0L) {
+                val b = this.intVal
+                if (b == null || b.signum() != 0) {
+                    throw ArithmeticException(if (asInt > 0) "Underflow" else "Overflow")
+                }
+            }
+        }
+        return asInt
     }
 }
