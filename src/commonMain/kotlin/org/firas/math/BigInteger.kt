@@ -1,5 +1,5 @@
 /*
- * Migrated from the source code of OpenJDK/jdk8 by Wu Yuping
+ * Migrated from the source code of OpenJDK/jdk11 by Wu Yuping
  *
  * Copyright (c) 1999, 2013, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
@@ -249,7 +249,7 @@ class BigInteger: Number, Comparable<BigInteger> {
 
         // Skip leading zeros and compute number of digits in magnitude
         while (cursor < len && Character.digit(value[cursor], radix) == 0) {
-            cursor++
+            cursor += 1
         }
 
         if (cursor == len) {
@@ -308,7 +308,7 @@ class BigInteger: Number, Comparable<BigInteger> {
 
         // Skip leading zeros and compute number of digits in magnitude
         while (cursor < len && Character.digit(value[cursor], 10) == 0) {
-            cursor++
+            cursor += 1
         }
         if (cursor == len) {
             signum = 0
@@ -497,7 +497,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             if (value == 0L) {
                 return ZERO
             }
-            if (value > 0 && value <= MAX_CONSTANT) {
+            if (value in 1..MAX_CONSTANT) {
                 return posConst[value.toInt()]!!
             } else if (value < 0 && value >= -MAX_CONSTANT) {
                 return negConst[(-value).toInt()]!!
@@ -534,13 +534,13 @@ class BigInteger: Number, Comparable<BigInteger> {
         /**
          * This mask is used to obtain the value of an int as if it were unsigned.
          */
-        internal val LONG_MASK = 0xffffffffL
+        internal const val LONG_MASK = 0xffffffffL
 
         /**
          * This constant limits `mag.length` of BigIntegers to the supported
          * range.
          */
-        private val MAX_MAG_LENGTH = Int.MAX_VALUE / Int.SIZE_BITS + 1 // (1 << 26)
+        private const val MAX_MAG_LENGTH = Int.MAX_VALUE / Int.SIZE_BITS + 1 // (1 << 26)
 
         /*
          * The following two arrays are used for fast String conversions.  Both
@@ -600,8 +600,8 @@ class BigInteger: Number, Comparable<BigInteger> {
                 valueOf(0x41c21cb8e1000000L))
 
         /*
-     * These two arrays are the integer analogue of above.
-     */
+         * These two arrays are the integer analogue of above.
+         */
         private val digitsPerInt = intArrayOf(0, 0, 30, 19, 15,
                 13, 11, 11, 10, 9,
                 9, 8, 8, 8, 8,
@@ -662,7 +662,7 @@ class BigInteger: Number, Comparable<BigInteger> {
         /**
          * Initialize static constant array when class is loaded.
          */
-        private val MAX_CONSTANT = 16
+        private const val MAX_CONSTANT = 16
         private val posConst = arrayOfNulls<BigInteger>(MAX_CONSTANT + 1)
         private val negConst = arrayOfNulls<BigInteger>(MAX_CONSTANT + 1)
 
@@ -789,12 +789,13 @@ class BigInteger: Number, Comparable<BigInteger> {
          * is to be treated as an unsigned value.
          */
         private fun parseInt(source: CharArray, start: Int, end: Int): Int {
-            var start = start
-            var result = Character.digit(source[start++], 10)
+            var startIndex = start
+            var result = Character.digit(source[startIndex], 10)
+            startIndex += 1
             if (result == -1) {
                 throw NumberFormatException(String(source))
             }
-            for (index in start until end) {
+            for (index in startIndex until end) {
                 val nextVal = Character.digit(source[index], 10)
                 if (nextVal == -1) {
                     throw NumberFormatException(String(source))
@@ -957,7 +958,8 @@ class BigInteger: Number, Comparable<BigInteger> {
                 val highBits = mag[0].ushr(nBits2)
                 if (highBits != 0) {
                     newMag = IntArray(magLen + nInts + 1)
-                    newMag[i++] = highBits
+                    newMag[i] = highBits
+                    i += 1
                 } else {
                     newMag = IntArray(magLen + nInts)
                 }
@@ -1940,6 +1942,126 @@ class BigInteger: Number, Comparable<BigInteger> {
     }
 
     /**
+     * Returns a BigInteger whose value is <tt>(this<sup>exponent</sup>)</tt>.
+     * Note that `exponent` is an integer rather than a BigInteger.
+     *
+     * @param  exponent exponent to which this BigInteger is to be raised.
+     * @return <tt>this<sup>exponent</sup></tt>
+     * @throws ArithmeticException `exponent` is negative.  (This would
+     * cause the operation to yield a non-integer value.)
+     */
+    fun pow(exponent: Int): BigInteger {
+        if (exponent < 0) {
+            throw ArithmeticException("Negative exponent")
+        }
+        if (this.signum == 0) {
+            return if (exponent == 0) ONE else this
+        }
+
+        var partToSquare = this.abs()
+
+        // Factor out powers of two from the base, as the exponentiation of
+        // these can be done by left shifts only.
+        // The remaining part can then be exponentiated faster.  The
+        // powers of two will be multiplied back at the end.
+        val powersOfTwo = partToSquare.getLowestSetBit()
+        val bitsToShift = powersOfTwo.toLong() * exponent
+        if (bitsToShift > Int.MAX_VALUE) {
+            reportOverflow()
+        }
+
+        val remainingBits: Int
+
+        // Factor the powers of two out quickly by shifting right, if needed.
+        if (powersOfTwo > 0) {
+            partToSquare = partToSquare.shr(powersOfTwo)
+            remainingBits = partToSquare.bitLength()
+            if (remainingBits == 1) {  // Nothing left but +/- 1?
+                return if (this.signum < 0 && exponent.and(1) == 1) {
+                    NEGATIVE_ONE.shl(powersOfTwo * exponent)
+                } else {
+                    ONE.shl(powersOfTwo * exponent)
+                }
+            }
+        } else {
+            remainingBits = partToSquare.bitLength()
+            if (remainingBits == 1) { // Nothing left but +/- 1?
+                return if (signum < 0 && exponent.and(1) == 1) {
+                    NEGATIVE_ONE
+                } else {
+                    ONE
+                }
+            }
+        }
+
+        // This is a quick way to approximate the size of the result,
+        // similar to doing log2[n] * exponent.  This will give an upper bound
+        // of how big the result can be, and which algorithm to use.
+        val scaleFactor = remainingBits.toLong() * exponent
+
+        // Use slightly different algorithms for small and large operands.
+        // See if the result will safely fit into a long. (Largest 2^63-1)
+        if (partToSquare.mag.size == 1 && scaleFactor <= 62) {
+            // Small number algorithm.  Everything fits into a long.
+            val newSign = if (signum < 0 && exponent and 1 == 1) -1 else 1
+            var result: Long = 1
+            var baseToPow2 = partToSquare.mag[0].toLong() and LONG_MASK
+
+            var workingExponent = exponent
+
+            // Perform exponentiation using repeated squaring trick
+            while (workingExponent != 0) {
+                if (workingExponent and 1 == 1) {
+                    result = result * baseToPow2
+                }
+                workingExponent = workingExponent ushr 1
+                if (workingExponent != 0) {
+                    baseToPow2 = baseToPow2 * baseToPow2
+                }
+            }
+
+            // Multiply back the powers of two (quickly, by shifting left)
+            return if (powersOfTwo > 0) {
+                if (bitsToShift + scaleFactor <= 62) { // Fits in long?
+                    valueOf((result shl bitsToShift.toInt()) * newSign)
+                } else {
+                    valueOf(result * newSign).shl(bitsToShift.toInt())
+                }
+            } else {
+                valueOf(result * newSign)
+            }
+        } else {
+            // Large number algorithm.  This is basically identical to
+            // the algorithm above, but calls multiply() and square()
+            // which may use more efficient algorithms for large numbers.
+            var answer = ONE
+
+            var workingExponent = exponent
+            // Perform exponentiation using repeated squaring trick
+            while (workingExponent != 0) {
+                if (workingExponent and 1 == 1) {
+                    answer *= partToSquare
+                }
+                workingExponent = workingExponent ushr 1
+                if (workingExponent != 0) {
+                    partToSquare = AlgorithmUtils.square(partToSquare)
+                }
+            }
+            // Multiply back the (exponentiated) powers of two (quickly,
+            // by shifting left)
+            if (powersOfTwo > 0) {
+                answer = answer.shl(powersOfTwo * exponent)
+            }
+
+            return if (signum < 0 && exponent and 1 == 1) {
+                answer.negate()
+            } else {
+                answer
+            }
+        }
+    }
+
+    /**
      * Returns a BigInteger whose value is the greatest common divisor of
      * `abs(this)` and `abs(val)`.  Returns 0 if
      * `this == 0 && val == 0`.
@@ -2255,7 +2377,7 @@ class BigInteger: Number, Comparable<BigInteger> {
                 multpos = ebits - wbits
                 while (buf and 1 == 0) {
                     buf = buf ushr 1
-                    multpos++
+                    multpos += 1
                 }
                 mult = table[buf.ushr(1)]
                 buf = 0
@@ -2453,7 +2575,8 @@ class BigInteger: Number, Comparable<BigInteger> {
             val highBits = mag[0].ushr(nBits)
             if (highBits != 0) {
                 newMag = IntArray(magLen - nInts)
-                newMag[i++] = highBits
+                newMag[i] = highBits
+                i += 1
             } else {
                 newMag = IntArray(magLen - nInts - 1)
             }

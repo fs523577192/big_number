@@ -1,5 +1,5 @@
 /*
- * Migrated from the source code of OpenJDK/jdk8 by Wu Yuping
+ * Migrated from the source code of OpenJDK/jdk11 by Wu Yuping
  *
  * Copyright (c) 1999, 2013, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.

@@ -173,6 +173,105 @@ class Integers private constructor() {
         }
 
         /**
+         * Returns the number of zero bits preceding the highest-order
+         * ("leftmost") one-bit in the two's complement binary representation
+         * of the specified `long` value.  Returns 64 if the
+         * specified value has no one-bits in its two's complement representation,
+         * in other words if it is equal to zero.
+         *
+         *
+         * Note that this method is closely related to the logarithm base 2.
+         * For all positive `long` values x:
+         *
+         *  * floor(log<sub>2</sub>(x)) = `63 - numberOfLeadingZeros(x)`
+         *  * ceil(log<sub>2</sub>(x)) = `64 - numberOfLeadingZeros(x - 1)`
+         *
+         *
+         * @param i the value whose number of leading zeros is to be computed
+         * @return the number of zero bits preceding the highest-order
+         * ("leftmost") one-bit in the two's complement binary representation
+         * of the specified `long` value, or 64 if the value
+         * is equal to zero.
+         * @since 1.5
+         */
+        fun numberOfLeadingZeros(i: Long): Int {
+            // HD, Figure 5-6
+            if (i == 0L)
+                return 64
+            var n = 1
+            var x = i.ushr(32).toInt()
+            if (x == 0) {
+                n += 32
+                x = i.toInt()
+            }
+            if (x.ushr(16) == 0) {
+                n += 16
+                x = x shl 16
+            }
+            if (x.ushr(24) == 0) {
+                n += 8
+                x = x shl 8
+            }
+            if (x.ushr(28) == 0) {
+                n += 4
+                x = x shl 4
+            }
+            if (x.ushr(30) == 0) {
+                n += 2
+                x = x shl 2
+            }
+            n -= x.ushr(31)
+            return n
+        }
+
+        /**
+         * Returns the number of zero bits following the lowest-order ("rightmost")
+         * one-bit in the two's complement binary representation of the specified
+         * `long` value.  Returns 64 if the specified value has no
+         * one-bits in its two's complement representation, in other words if it is
+         * equal to zero.
+         *
+         * @param i the value whose number of trailing zeros is to be computed
+         * @return the number of zero bits following the lowest-order ("rightmost")
+         * one-bit in the two's complement binary representation of the
+         * specified `long` value, or 64 if the value is equal
+         * to zero.
+         * @since 1.5
+         */
+        fun numberOfTrailingZeros(i: Long): Int {
+            // HD, Figure 5-14
+            if (i == 0L) return 64
+            var n = 63
+            var x: Int
+            var y = i.toInt()
+            if (y != 0) {
+                n -= 32
+                x = y
+            } else x = i.ushr(32).toInt()
+            y = x shl 16
+            if (y != 0) {
+                n -= 16
+                x = y
+            }
+            y = x shl 8
+            if (y != 0) {
+                n -= 8
+                x = y
+            }
+            y = x shl 4
+            if (y != 0) {
+                n -= 4
+                x = y
+            }
+            y = x shl 2
+            if (y != 0) {
+                n -= 2
+                x = y
+            }
+            return n - (x shl 1).ushr(31)
+        }
+
+        /**
          * Returns the number of zero bits following the lowest-order ("rightmost")
          * one-bit in the two's complement binary representation of the specified
          * `Int` value.  Returns 32 if the specified value has no
