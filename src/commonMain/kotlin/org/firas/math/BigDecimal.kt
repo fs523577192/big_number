@@ -759,10 +759,10 @@ internal constructor(
          */
         private fun bigDigitLength(b: BigInteger): Int {
             /*
-         * Same idea as the long version, but we need a better
-         * approximation of log10(2). Using 646456993/2^31
-         * is accurate up to max possible reported bitLength.
-         */
+             * Same idea as the long version, but we need a better
+             * approximation of log10(2). Using 646456993/2^31
+             * is accurate up to max possible reported bitLength.
+             */
             if (b.signum == 0) {
                 return 1
             }
@@ -902,6 +902,26 @@ internal constructor(
             }
 
             return commonNeedIncrement(roundingMode, qsign, cmpFracHalf, q and 1L != 0L)
+        }
+
+        /**
+         * Tests if quotient has to be incremented according the roundingMode
+         */
+        private fun needIncrement(
+            ldivisor: Long, roundingMode: RoundingMode,
+            qsign: Int, mq: MutableBigInteger, r: Long
+        ): Boolean {
+            if (r == 0L) {
+                throw AssertionError("r is zero")
+            }
+
+            val cmpFracHalf: Int = if (r <= HALF_LONG_MIN_VALUE || r > HALF_LONG_MAX_VALUE) {
+                1 // 2 * r can't fit into long
+            } else {
+                longCompareMagnitude(2 * r, ldivisor)
+            }
+
+            return commonNeedIncrement(roundingMode, qsign, cmpFracHalf, mq.isOdd())
         }
 
         /*
@@ -1155,6 +1175,184 @@ internal constructor(
 
         private fun multiply(x: BigInteger, y: BigInteger, scale: Int): BigDecimal {
             return BigDecimal(x * y, INFLATED, scale, 0)
+        }
+
+        /**
+         * Internally used for division operation for division `long` by
+         * `long`.
+         * The returned `BigDecimal` object is the quotient whose scale is set
+         * to the passed in scale. If the remainder is not zero, it will be rounded
+         * based on the passed in roundingMode. Also, if the remainder is zero and
+         * the last parameter, i.e. preferredScale is NOT equal to scale, the
+         * trailing zeros of the result is stripped to match the preferredScale.
+         */
+        private fun divideAndRound(
+            ldividend: Long, ldivisor: Long, scale: Int, roundingMode: RoundingMode,
+            preferredScale: Int
+        ): BigDecimal {
+            val q = ldividend / ldivisor // store quotient in long
+            if (roundingMode == RoundingMode.DOWN && scale == preferredScale)
+                return valueOf(q, scale)
+            val r = ldividend % ldivisor // store remainder in long
+            val qsign = if (ldividend < 0 == ldivisor < 0) 1 else -1 // quotient sign
+            return if (r != 0L) {
+                val increment = needIncrement(ldivisor, roundingMode, qsign, q, r)
+                valueOf(if (increment) q + qsign else q, scale)
+            } else {
+                if (preferredScale != scale)
+                    createAndStripZerosToMatchScale(q, scale, preferredScale.toLong())
+                else
+                    valueOf(q, scale)
+            }
+        }
+
+        /**
+         * Divides `long` by `long` and do rounding based on the
+         * passed in roundingMode.
+         */
+        private fun divideAndRound(ldividend: Long, ldivisor: Long, roundingMode: RoundingMode): Long {
+            val q = ldividend / ldivisor // store quotient in long
+            if (roundingMode == RoundingMode.DOWN) {
+                return q
+            }
+            val r = ldividend % ldivisor // store remainder in long
+            val qsign = if (ldividend < 0 == ldivisor < 0) 1 else -1 // quotient sign
+            return if (r != 0L) {
+                val increment = needIncrement(ldivisor, roundingMode, qsign, q, r)
+                if (increment) q + qsign else q
+            } else {
+                q
+            }
+        }
+
+        /**
+         * Divides `BigInteger` value by `long` value and
+         * do rounding based on the passed in roundingMode.
+         */
+        private fun divideAndRound(bdividend: BigInteger, ldivisor: Long, roundingMode: RoundingMode): BigInteger {
+            // Descend into mutables for faster remainder checks
+            val mdividend = MutableBigInteger(bdividend.mag)
+            // store quotient
+            val mq = MutableBigInteger()
+            // store quotient & remainder in long
+            val r = mdividend.divide(ldivisor, mq)
+            // record remainder is zero or not
+            val isRemainderZero = r == 0L
+            // quotient sign
+            val qsign = if (ldivisor < 0) -bdividend.signum else bdividend.signum
+            if (!isRemainderZero) {
+                if (needIncrement(ldivisor, roundingMode, qsign, mq, r)) {
+                    mq.add(MutableBigInteger.ONE)
+                }
+            }
+            return mq.toBigInteger(qsign)
+        }
+
+        /**
+         * Internally used for division operation for division `BigInteger`
+         * by `long`.
+         * The returned `BigDecimal` object is the quotient whose scale is set
+         * to the passed in scale. If the remainder is not zero, it will be rounded
+         * based on the passed in roundingMode. Also, if the remainder is zero and
+         * the last parameter, i.e. preferredScale is NOT equal to scale, the
+         * trailing zeros of the result is stripped to match the preferredScale.
+         */
+        private fun divideAndRound(
+            bdividend: BigInteger,
+            ldivisor: Long, scale: Int, roundingMode: RoundingMode, preferredScale: Int
+        ): BigDecimal {
+            // Descend into mutables for faster remainder checks
+            val mdividend = MutableBigInteger(bdividend.mag)
+            // store quotient
+            val mq = MutableBigInteger()
+            // store quotient & remainder in long
+            val r = mdividend.divide(ldivisor, mq)
+            // record remainder is zero or not
+            val isRemainderZero = r == 0L
+            // quotient sign
+            val qsign = if (ldivisor < 0) -bdividend.signum else bdividend.signum
+            if (!isRemainderZero) {
+                if (needIncrement(ldivisor, roundingMode, qsign, mq, r)) {
+                    mq.add(MutableBigInteger.ONE)
+                }
+                return mq.toBigDecimal(qsign, scale)
+            } else {
+                if (preferredScale != scale) {
+                    val compactVal = mq.toCompactValue(qsign)
+                    if (compactVal != INFLATED) {
+                        return createAndStripZerosToMatchScale(compactVal, scale, preferredScale.toLong())
+                    }
+                    val intVal = mq.toBigInteger(qsign)
+                    return createAndStripZerosToMatchScale(intVal, scale, preferredScale.toLong())
+                } else {
+                    return mq.toBigDecimal(qsign, scale)
+                }
+            }
+        }
+
+        /**
+         * Remove insignificant trailing zeros from this
+         * `BigInteger` value until the preferred scale is reached or no
+         * more zeros can be removed.  If the preferred scale is less than
+         * Integer.MIN_VALUE, all the trailing zeros will be removed.
+         *
+         * @return new `BigDecimal` with a scale possibly reduced
+         * to be closed to the preferred scale.
+         */
+        private fun createAndStripZerosToMatchScale(intVal: BigInteger, scale: Int, preferredScale: Long): BigDecimal {
+            var intVal = intVal
+            var scale = scale
+            var qr: Array<BigInteger> // quotient-remainder pair
+            while (intVal.compareMagnitude(BigInteger.TEN) >= 0 && scale > preferredScale) {
+                if (intVal.testBit(0))
+                    break // odd number cannot end in 0
+                qr = intVal.divideAndRemainder(BigInteger.TEN)
+                if (qr[1].signum() != 0)
+                    break // non-0 remainder
+                intVal = qr[0]
+                scale = checkScale(intVal, scale.toLong() - 1) // could Overflow
+            }
+            return valueOf(intVal, scale, 0)
+        }
+
+        /**
+         * Remove insignificant trailing zeros from this
+         * `long` value until the preferred scale is reached or no
+         * more zeros can be removed.  If the preferred scale is less than
+         * Integer.MIN_VALUE, all the trailing zeros will be removed.
+         *
+         * @return new `BigDecimal` with a scale possibly reduced
+         * to be closed to the preferred scale.
+         */
+        private fun createAndStripZerosToMatchScale(compactVal: Long, scale: Int, preferredScale: Long): BigDecimal {
+            var compactVal = compactVal
+            var scale = scale
+            while (compactVal.absoluteValue >= 10L && scale > preferredScale) {
+                if (compactVal and 1L != 0L)
+                    break // odd number cannot end in 0
+                val r = compactVal % 10L
+                if (r != 0L)
+                    break // non-0 remainder
+                compactVal /= 10
+                scale = checkScale(compactVal, scale.toLong() - 1) // could Overflow
+            }
+            return valueOf(compactVal, scale)
+        }
+
+        private fun stripZerosToMatchScale(
+            intVal: BigInteger?,
+            intCompact: Long,
+            scale: Int,
+            preferredScale: Int
+        ): BigDecimal {
+            return if (intCompact != INFLATED) {
+                createAndStripZerosToMatchScale(intCompact, scale, preferredScale.toLong())
+            } else {
+                createAndStripZerosToMatchScale(
+                    intVal ?: INFLATED_BIGINT,
+                    scale, preferredScale.toLong()
+                )
+            }
         }
 
         private val LONGLONG_TEN_POWERS_TABLE = arrayOf(
@@ -1412,6 +1610,176 @@ internal constructor(
      */
     fun unscaledValue(): BigInteger {
         return this.inflated()
+    }
+
+
+    /**
+     * Returns a `BigDecimal` whose scale is the specified
+     * value, and whose unscaled value is determined by multiplying or
+     * dividing this `BigDecimal`'s unscaled value by the
+     * appropriate power of ten to maintain its overall value.  If the
+     * scale is reduced by the operation, the unscaled value must be
+     * divided (rather than multiplied), and the value may be changed;
+     * in this case, the specified rounding mode is applied to the
+     * division.
+     *
+     * @apiNote Since BigDecimal objects are immutable, calls of
+     * this method do *not* result in the original object being
+     * modified, contrary to the usual convention of having methods
+     * named `set*X*` mutate field *`X`*.
+     * Instead, `setScale` returns an object with the proper
+     * scale; the returned object may or may not be newly allocated.
+     *
+     * @param  newScale scale of the `BigDecimal` value to be returned.
+     * @param  roundingMode The rounding mode to apply.
+     * @return a `BigDecimal` whose scale is the specified value,
+     * and whose unscaled value is determined by multiplying or
+     * dividing this `BigDecimal`'s unscaled value by the
+     * appropriate power of ten to maintain its overall value.
+     * @throws ArithmeticException if `roundingMode==ROUND_UNNECESSARY`
+     * and the specified scaling operation would require
+     * rounding.
+     * @throws IllegalArgumentException if `roundingMode` does not
+     * represent a valid rounding mode.
+     * @see RoundingMode
+     */
+    fun setScale(newScale: Int, roundingMode: RoundingMode): BigDecimal {
+        val oldScale = this.scale
+        if (newScale == oldScale) {
+            // easy case
+            return this
+        }
+        if (this.signum() == 0) {
+            // zero can have any scale
+            return zeroValueOf(newScale)
+        }
+        if (this.intCompact != INFLATED) {
+            var rs = this.intCompact
+            if (newScale > oldScale) {
+                val raise = checkScale(newScale.toLong() - oldScale)
+                rs = longMultiplyPowerTen(rs, raise)
+                if (rs != INFLATED) {
+                    return valueOf(rs, newScale)
+                }
+                val rb = bigMultiplyPowerTen(raise)
+                return BigDecimal(rb, INFLATED, newScale, if (precision > 0) precision + raise else 0)
+            } else {
+                // newScale < oldScale -- drop some digits
+                // Can't predict the precision due to the effect of rounding.
+                val drop = checkScale(oldScale.toLong() - newScale)
+                return if (drop < LONG_TEN_POWERS_TABLE.size) {
+                    divideAndRound(rs, LONG_TEN_POWERS_TABLE[drop], newScale, roundingMode, newScale)
+                } else {
+                    divideAndRound(this.inflated(), bigTenToThe(drop).toLong(),
+                            newScale, roundingMode, newScale)
+                }
+            }
+        } else {
+            if (newScale > oldScale) {
+                val raise = checkScale(newScale.toLong() - oldScale)
+                val rb = bigMultiplyPowerTen(this.intVal!!, raise)
+                return BigDecimal(rb, INFLATED, newScale, if (precision > 0) precision + raise else 0)
+            } else {
+                // newScale < oldScale -- drop some digits
+                // Can't predict the precision due to the effect of rounding.
+                val drop = checkScale(oldScale.toLong() - newScale)
+                return if (drop < LONG_TEN_POWERS_TABLE.size)
+                    divideAndRound(
+                        this.intVal!!, LONG_TEN_POWERS_TABLE[drop], newScale, roundingMode,
+                        newScale
+                    )
+                else
+                    divideAndRound(this.intVal!!, bigTenToThe(drop).toLong(),
+                            newScale, roundingMode, newScale)
+            }
+        }
+    }
+
+    /**
+     * Returns a `BigDecimal` whose scale is the specified
+     * value, and whose value is numerically equal to this
+     * `BigDecimal`'s.  Throws an `ArithmeticException`
+     * if this is not possible.
+     *
+     *
+     * This call is typically used to increase the scale, in which
+     * case it is guaranteed that there exists a `BigDecimal`
+     * of the specified scale and the correct value.  The call can
+     * also be used to reduce the scale if the caller knows that the
+     * `BigDecimal` has sufficiently many zeros at the end of
+     * its fractional part (i.e., factors of ten in its integer value)
+     * to allow for the rescaling without changing its value.
+     *
+     *
+     * This method returns the same result as the two-argument
+     * versions of `setScale`, but saves the caller the trouble
+     * of specifying a rounding mode in cases where it is irrelevant.
+     *
+     * @apiNote Since `BigDecimal` objects are immutable,
+     * calls of this method do *not* result in the original
+     * object being modified, contrary to the usual convention of
+     * having methods named `set*X*` mutate field
+     * *`X`*.  Instead, `setScale` returns an
+     * object with the proper scale; the returned object may or may
+     * not be newly allocated.
+     *
+     * @param  newScale scale of the `BigDecimal` value to be returned.
+     * @return a `BigDecimal` whose scale is the specified value, and
+     * whose unscaled value is determined by multiplying or dividing
+     * this `BigDecimal`'s unscaled value by the appropriate
+     * power of ten to maintain its overall value.
+     * @throws ArithmeticException if the specified scaling operation would
+     * require rounding.
+     * @see .setScale
+     */
+    fun setScale(newScale: Int): BigDecimal {
+        return setScale(newScale, RoundingMode.UNNECESSARY)
+    }
+
+    // ----==== Decimal Point Motion Operations ====----
+
+    /**
+     * Returns a `BigDecimal` which is equivalent to this one
+     * with the decimal point moved `n` places to the left.  If
+     * `n` is non-negative, the call merely adds `n` to
+     * the scale.  If `n` is negative, the call is equivalent
+     * to `movePointRight(-n)`.  The `BigDecimal`
+     * returned by this call has value <tt>(this
+     * 10<sup>-n</sup>)</tt> and scale `max(this.scale()+n,
+     * 0)`.
+     *
+     * @param  n number of places to move the decimal point to the left.
+     * @return a `BigDecimal` which is equivalent to this one with the
+     * decimal point moved `n` places to the left.
+     * @throws ArithmeticException if scale overflows.
+     */
+    fun movePointLeft(n: Int): BigDecimal {
+        // Cannot use movePointRight(-n) in case of n==Integer.MIN_VALUE
+        val newScale = checkScale(scale.toLong() + n)
+        val num = BigDecimal(intVal, intCompact, newScale, 0)
+        return if (num.scale < 0) num.setScale(0, RoundingMode.UNNECESSARY) else num
+    }
+
+    /**
+     * Returns a `BigDecimal` which is equivalent to this one
+     * with the decimal point moved `n` places to the right.
+     * If `n` is non-negative, the call merely subtracts
+     * `n` from the scale.  If `n` is negative, the call
+     * is equivalent to `movePointLeft(-n)`.  The
+     * `BigDecimal` returned by this call has value <tt>(this
+     *  10<sup>n</sup>)</tt> and scale `max(this.scale()-n,
+     * 0)`.
+     *
+     * @param  n number of places to move the decimal point to the right.
+     * @return a `BigDecimal` which is equivalent to this one
+     * with the decimal point moved `n` places to the right.
+     * @throws ArithmeticException if scale overflows.
+     */
+    fun movePointRight(n: Int): BigDecimal {
+        // Cannot use movePointLeft(-n) in case of n==Integer.MIN_VALUE
+        val newScale = checkScale(scale.toLong() - n)
+        val num = BigDecimal(intVal, intCompact, newScale, 0)
+        return if (num.scale < 0) num.setScale(0, RoundingMode.UNNECESSARY) else num
     }
 
     /**

@@ -140,6 +140,50 @@ internal open class MutableBigInteger private constructor(
         }
 
         /**
+         * A primitive used for division by long.
+         * Specialized version of the method divadd.
+         * dh is a high part of the divisor, dl is a low part
+         */
+        private fun divaddLong(dh: Int, dl: Int, result: IntArray, offset: Int): Int {
+            var carry: Long = 0
+
+            var sum = (dl.toLong() and LONG_MASK) + (result[1 + offset].toLong() and LONG_MASK)
+            result[1 + offset] = sum.toInt()
+
+            sum = (dh.toLong() and LONG_MASK) + (result[offset].toLong() and LONG_MASK) + carry
+            result[offset] = sum.toInt()
+            carry = sum.ushr(32)
+            return carry.toInt()
+        }
+
+        /**
+         * This method is used for division by long.
+         * Specialized version of the method sulsub.
+         * dh is a high part of the divisor, dl is a low part
+         */
+        private fun mulsubLong(q: IntArray, dh: Int, dl: Int, x: Int, offset: Int): Int {
+            var offset = offset
+            val xLong = x.toLong() and LONG_MASK
+            offset += 2
+            var product = (dl.toLong() and LONG_MASK) * xLong
+            var difference = q[offset] - product
+            q[offset] = difference.toInt()
+            offset -= 1
+            var carry = product.ushr(32) + if (difference and LONG_MASK > product.inv() and LONG_MASK)
+                1
+            else
+                0
+            product = (dh.toLong() and LONG_MASK) * xLong + carry
+            difference = q[offset] - product
+            q[offset] = difference.toInt()
+            carry = product.ushr(32) + if (difference and LONG_MASK > product.inv() and LONG_MASK)
+                1
+            else
+                0
+            return carry.toInt()
+        }
+
+        /**
          * Compare two longs as if they were unsigned.
          * Returns true iff one is bigger than two.
          */
@@ -260,6 +304,28 @@ internal open class MutableBigInteger private constructor(
     internal fun toBigInteger(): BigInteger {
         normalize()
         return toBigInteger(if (isZero()) 0 else 1)
+    }
+
+    /**
+     * Convert this MutableBigInteger to BigDecimal object with the specified sign
+     * and scale.
+     */
+    fun toBigDecimal(sign: Int, scale: Int): BigDecimal {
+        if (this.intLen == 0 || sign == 0) {
+            return BigDecimal.zeroValueOf(scale)
+        }
+        val mag = getMagnitudeArray()
+        val len = mag.size
+        val d = mag[0]
+        // If this MutableBigInteger can't be fit into long, we need to
+        // make a BigInteger object for the resultant BigDecimal object.
+        if (len > 2 || d < 0 && len == 2)
+            return BigDecimal(BigInteger(mag, sign), INFLATED, scale, 0)
+        val v = if (len == 2)
+            mag[1].toLong().and(LONG_MASK) or (d.toLong().and(LONG_MASK) shl 32)
+        else
+            d.toLong() and LONG_MASK
+        return BigDecimal.valueOf(if (sign == -1) -v else v, scale)
     }
 
     /**
@@ -600,14 +666,14 @@ internal open class MutableBigInteger private constructor(
     /**
      * Returns true iff this MutableBigInteger is even.
      */
-    private fun isEven(): Boolean {
+    internal fun isEven(): Boolean {
         return this.intLen == 0 || this.value[this.offset + this.intLen - 1].and(1) == 0
     }
 
     /**
      * Returns true iff this MutableBigInteger is odd.
      */
-    private fun isOdd(): Boolean {
+    internal fun isOdd(): Boolean {
         return if (isZero()) false else this.value[this.offset + this.intLen - 1].and(1) == 1
     }
 
@@ -910,6 +976,37 @@ internal open class MutableBigInteger private constructor(
             zval[0] = carry.toInt()
         }
         z.value = zval
+    }
+
+    /**
+     * Internally used  to calculate the quotient of this div v and places the
+     * quotient in the provided MutableBigInteger object and the remainder is
+     * returned.
+     *
+     * @return the remainder of the division will be returned.
+     */
+    internal fun divide(v: Long, quotient: MutableBigInteger): Long {
+        var v = v
+        if (v == 0L) {
+            throw ArithmeticException("BigInteger divide by zero")
+        }
+        // Dividend is zero
+        if (this.intLen == 0) {
+            quotient.offset = 0
+            quotient.intLen = quotient.offset
+            return 0
+        }
+        if (v < 0) {
+            v = -v
+        }
+        val d = v.ushr(32).toInt()
+        quotient.clear()
+        // Special case on word divisor
+        return if (d == 0)
+            divideOneWord(v.toInt(), quotient).toLong() and LONG_MASK
+        else {
+            divideLongMagnitude(v, quotient).toLong()
+        }
     }
 
     /**
@@ -1440,6 +1537,119 @@ internal open class MutableBigInteger private constructor(
         // Unnormalize
         return if (shift > 0) rem % divisor else rem
     } // internal fun divideOneWord(divisor: Int, quotient: MutableBigInteger): Int
+
+    /**
+     * Divide this MutableBigInteger by the divisor represented by positive long
+     * value. The quotient will be placed into the provided quotient object &
+     * the remainder object is returned.
+     */
+    private fun divideLongMagnitude(ldivisor: Long, quotient: MutableBigInteger): MutableBigInteger {
+        var ldivisor = ldivisor
+        // Remainder starts as dividend with space for a leading zero
+        val rem = MutableBigInteger(IntArray(this.intLen + 1))
+        this.value.copyInto(rem.value, 1, this.offset, this.offset + this.intLen)
+        rem.intLen = this.intLen
+        rem.offset = 1
+
+        val nlen = rem.intLen
+
+        val limit = nlen - 2 + 1
+        if (quotient.value.size < limit) {
+            quotient.value = IntArray(limit)
+            quotient.offset = 0
+        }
+        quotient.intLen = limit
+        val q = quotient.value
+
+        // D1 normalize the divisor
+        val shift = Integers.numberOfLeadingZeros(ldivisor)
+        if (shift > 0) {
+            ldivisor = ldivisor shl shift
+            rem.leftShift(shift)
+        }
+
+        // Must insert leading 0 in rem if its length did not change
+        if (rem.intLen == nlen) {
+            rem.offset = 0
+            rem.value[0] = 0
+            rem.intLen += 1
+        }
+
+        val dh = ldivisor.ushr(32).toInt()
+        val dhLong = dh.toLong() and LONG_MASK
+        val dl = (ldivisor and LONG_MASK).toInt()
+
+        // D2 Initialize j
+        for (j in 0 until limit) {
+            // D3 Calculate qhat
+            // estimate qhat
+            var qhat = 0
+            var qrem = 0
+            var skipCorrection = false
+            val nh = rem.value[j + rem.offset]
+            val nh2 = nh + -0x80000000
+            val nm = rem.value[j + 1 + rem.offset]
+
+            if (nh == dh) {
+                qhat = 0.inv()
+                qrem = nh + nm
+                skipCorrection = qrem + -0x80000000 < nh2
+            } else {
+                val nChunk = nh.toLong().shl(32) or (nm.toLong() and LONG_MASK)
+                if (nChunk >= 0) {
+                    qhat = (nChunk / dhLong).toInt()
+                    qrem = (nChunk - qhat * dhLong).toInt()
+                } else {
+                    val tmp = divWord(nChunk, dh)
+                    qhat = (tmp and LONG_MASK).toInt()
+                    qrem = tmp.ushr(32).toInt()
+                }
+            }
+
+            if (qhat == 0) {
+                continue
+            }
+            if (!skipCorrection) { // Correct qhat
+                val nl = rem.value[j + 2 + rem.offset].toLong() and LONG_MASK
+                var rs = qrem.toLong().and(LONG_MASK).shl(32) or nl
+                var estProduct = (dl.toLong() and LONG_MASK) * (qhat.toLong() and LONG_MASK)
+
+                if (unsignedLongCompare(estProduct, rs)) {
+                    qhat -= 1
+                    qrem = ((qrem.toLong() and LONG_MASK) + dhLong).toInt()
+                    if (qrem.toLong() and LONG_MASK >= dhLong) {
+                        estProduct -= dl.toLong().and(LONG_MASK)
+                        rs = qrem.toLong().and(LONG_MASK).shl(32) or nl
+                        if (unsignedLongCompare(estProduct, rs)) {
+                            qhat -= 1
+                        }
+                    } // if (qrem.toLong() and LONG_MASK >= dhLong)
+                }
+            } // if (!skipCorrection) { // Correct qhat
+
+            // D4 Multiply and subtract
+            rem.value[j + rem.offset] = 0
+            val borrow = mulsubLong(rem.value, dh, dl, qhat, j + rem.offset)
+
+            // D5 Test remainder
+            if (borrow + -0x80000000 > nh2) {
+                // D6 Add back
+                divaddLong(dh, dl, rem.value, j + 1 + rem.offset)
+                qhat -= 1
+            }
+
+            // Store the quotient digit
+            q[j] = qhat
+        } // D7 loop on j
+
+        // D8 Unnormalize
+        if (shift > 0) {
+            rem.rightShift(shift)
+        }
+        quotient.normalize()
+        rem.normalize()
+        return rem
+    }
 
     /**
      * This method divides a long quantity by an int to estimate
