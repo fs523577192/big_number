@@ -1421,11 +1421,17 @@ internal constructor(
     } // companion object
 
     override fun toByte(): Byte {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        return if (this.intCompact != INFLATED && this.scale == 0)
+            this.intCompact.toByte()
+        else
+            toBigInteger().toByte()
     }
 
     override fun toChar(): Char {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        return if (this.intCompact != INFLATED && this.scale == 0)
+            this.intCompact.toChar()
+        else
+            toBigInteger().toChar()
     }
 
     override fun toDouble(): Double {
@@ -1436,16 +1442,98 @@ internal constructor(
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
+    /**
+     * Converts this `BigDecimal` to an `int`.
+     * This conversion is analogous to the
+     * *narrowing primitive conversion* from `double` to
+     * `short` as defined in
+     * <cite>The Java Language Specification</cite>:
+     * any fractional part of this
+     * `BigDecimal` will be discarded, and if the resulting
+     * "`BigInteger`" is too big to fit in an
+     * `int`, only the low-order 32 bits are returned.
+     * Note that this conversion can lose information about the
+     * overall magnitude and precision of this `BigDecimal`
+     * value as well as return a result with the opposite sign.
+     *
+     * @return this `BigDecimal` converted to an `int`.
+     * @jls 5.1.3 Narrowing Primitive Conversion
+     */
     override fun toInt(): Int {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        return if (this.intCompact != INFLATED && this.scale == 0)
+            this.intCompact.toInt()
+        else
+            toBigInteger().toInt()
     }
 
+    /**
+     * Converts this `BigDecimal` to a `long`.
+     * This conversion is analogous to the
+     * *narrowing primitive conversion* from `double` to
+     * `short` as defined in
+     * <cite>The Java Language Specification</cite>:
+     * any fractional part of this
+     * `BigDecimal` will be discarded, and if the resulting
+     * "`BigInteger`" is too big to fit in a
+     * `long`, only the low-order 64 bits are returned.
+     * Note that this conversion can lose information about the
+     * overall magnitude and precision of this `BigDecimal` value as well
+     * as return a result with the opposite sign.
+     *
+     * @return this `BigDecimal` converted to a `long`.
+     * @jls 5.1.3 Narrowing Primitive Conversion
+     */
     override fun toLong(): Long {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        return if (this.intCompact != INFLATED && this.scale == 0)
+            this.intCompact
+        else
+            toBigInteger().toLong()
     }
 
     override fun toShort(): Short {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        return if (this.intCompact != INFLATED && this.scale == 0)
+            this.intCompact.toShort()
+        else
+            toBigInteger().toShort()
+    }
+
+    /**
+     * Converts this `BigDecimal` to a `BigInteger`.
+     * This conversion is analogous to the
+     * *narrowing primitive conversion* from `double` to
+     * `long` as defined in
+     * <cite>The Java Language Specification</cite>:
+     * any fractional part of this
+     * `BigDecimal` will be discarded.  Note that this
+     * conversion can lose information about the precision of the
+     * `BigDecimal` value.
+     *
+     *
+     * To have an exception thrown if the conversion is inexact (in
+     * other words if a nonzero fractional part is discarded), use the
+     * [.toBigIntegerExact] method.
+     *
+     * @return this `BigDecimal` converted to a `BigInteger`.
+     * @jls 5.1.3 Narrowing Primitive Conversion
+     */
+    fun toBigInteger(): BigInteger {
+        // force to an integer, quietly
+        return this.setScale(0, RoundingMode.DOWN).inflated()
+    }
+
+    /**
+     * Converts this `BigDecimal` to a `BigInteger`,
+     * checking for lost information.  An exception is thrown if this
+     * `BigDecimal` has a nonzero fractional part.
+     *
+     * @return this `BigDecimal` converted to a `BigInteger`.
+     * @throws ArithmeticException if `this` has a nonzero
+     * fractional part.
+     * @since  Java 1.5
+     */
+    fun toBigIntegerExact(): BigInteger {
+        // round to an integer, with Exception if decimal part non-0
+        return this.setScale(0, RoundingMode.UNNECESSARY).inflated()
     }
 
     // ----==== Arithmetic Operations ====----
