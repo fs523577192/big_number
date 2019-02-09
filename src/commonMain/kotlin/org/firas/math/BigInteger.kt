@@ -997,7 +997,7 @@ class BigInteger: Number, Comparable<BigInteger> {
                     AlgorithmUtils.primitiveRightShift(result, result.size, 32 - nBits)
                     result
                 }
-            }
+            } // private fun leftShift(a: IntArray, len: Int, n: Int): IntArray
         }
 
         /**
@@ -1307,6 +1307,46 @@ class BigInteger: Number, Comparable<BigInteger> {
         }
     } // companion object
 
+    // --------
+    // The following fields are stable variables. A stable variable's value
+    // changes at most once from the default zero value to a non-zero stable
+    // value. A stable value is calculated lazily on demand.
+
+    /**
+     * One plus the bitCount of this BigInteger. This is a stable variable.
+     *
+     * @see .bitCount
+     */
+    private var bitCountPlusOne: Int = 0
+
+    /**
+     * One plus the bitLength of this BigInteger. This is a stable variable.
+     * (either value is acceptable).
+     *
+     * @see .bitLength
+     */
+    private var bitLengthPlusOne: Int = 0
+
+    /**
+     * Two plus the lowest set bit of this BigInteger. This is a stable variable.
+     *
+     * @see .getLowestSetBit
+     */
+    private var lowestSetBitPlusTwo: Int = 0
+
+    /**
+     * Two plus the index of the lowest-order int in the magnitude of this
+     * BigInteger that contains a nonzero int. This is a stable variable. The
+     * least significant int has int-number 0, the next int in order of
+     * increasing significance has int-number 1, and so forth.
+     *
+     *
+     * Note: never used for a BigInteger with a magnitude of zero.
+     *
+     * @see .firstNonzeroIntNum
+     */
+    private var firstNonzeroIntNumPlusTwo: Int = 0
+
     /**
      * Converts this BigInteger to an `int`.  This
      * conversion is analogous to a
@@ -1486,34 +1526,70 @@ class BigInteger: Number, Comparable<BigInteger> {
      * Returns the number of bits in the minimal two's-complement
      * representation of this BigInteger, *excluding* a sign bit.
      * For positive BigIntegers, this is equivalent to the number of bits in
-     * the ordinary binary representation.  (Computes
-     * `(ceil(log2(this < 0 ? -this : this+1)))`.)
+     * the ordinary binary representation.  For zero this method returns
+     * `0`.  (Computes `(ceil(log2(this < 0 ? -this : this+1)))`.)
      *
      * @return number of bits in the minimal two's-complement
      * representation of this BigInteger, *excluding* a sign bit.
      */
     fun bitLength(): Int {
-        val m = this.mag
-        val len = m.size
-        if (len == 0) {
-            return 0 // offset by one to initialize
-        } else {
-            // Calculate the bit length of the magnitude
-            val magBitLength = (len - 1 shl 5) + bitLengthForInt(this.mag[0])
-            if (this.signum < 0) {
-                // Check if magnitude is a power of two
-                var pow2 = Integers.bitCount(mag[0]) == 1
-                var i = 1
-                while (i < len && pow2) {
-                    pow2 = this.mag[i] == 0
-                    i += 1
-                }
-
-                return if (pow2) magBitLength - 1 else magBitLength
+        var n = bitLengthPlusOne - 1
+        if (n == -1) { // bitLength not initialized yet
+            val m = mag
+            val len = m.size
+            if (len == 0) {
+                n = 0 // offset by one to initialize
             } else {
-                return magBitLength
+                // Calculate the bit length of the magnitude
+                val magBitLength = (len - 1 shl 5) + bitLengthForInt(mag[0])
+                if (signum < 0) {
+                    // Check if magnitude is a power of two
+                    var pow2 = Integers.bitCount(mag[0]) == 1
+                    var i = 1
+                    while (i < len && pow2) {
+                        pow2 = mag[i] == 0
+                        i += 1
+                    }
+
+                    n = if (pow2) magBitLength - 1 else magBitLength
+                } else {
+                    n = magBitLength
+                }
             }
+            bitLengthPlusOne = n + 1
         }
+        return n
+    }
+
+    /**
+     * Returns the number of bits in the two's complement representation
+     * of this BigInteger that differ from its sign bit.  This method is
+     * useful when implementing bit-vector style sets atop BigIntegers.
+     *
+     * @return number of bits in the two's complement representation
+     * of this BigInteger that differ from its sign bit.
+     */
+    fun bitCount(): Int {
+        var bc = bitCountPlusOne - 1
+        if (bc == -1) {  // bitCount not initialized yet
+            bc = 0      // offset by one to initialize
+            // Count the bits in the magnitude
+            for (i in 0 until mag.size)
+                bc += Integers.bitCount(mag[i])
+            if (signum < 0) {
+                // Count the trailing zeros in the magnitude
+                var magTrailingZeroCount = 0
+                var j: Int = mag.size - 1
+                while (mag[j] == 0) {
+                    magTrailingZeroCount += 32
+                    j -= 1
+                }
+                magTrailingZeroCount += Integers.numberOfTrailingZeros(mag[j])
+                bc += magTrailingZeroCount - 1
+            }
+            bitCountPlusOne = bc + 1
+        }
+        return bc
     }
 
     // ----==== Single Bit Operations ====----
@@ -1607,23 +1683,29 @@ class BigInteger: Number, Comparable<BigInteger> {
      * Returns the index of the rightmost (lowest-order) one bit in this
      * BigInteger (the number of zero bits to the right of the rightmost
      * one bit).  Returns -1 if this BigInteger contains no one bits.
-     * (Computes `(this == 0? -1 : log2(this & -this))`.)
+     * (Computes `(this == 0 ? -1 : log2(this & -this))`.)
      *
      * @return index of the rightmost one bit in this BigInteger.
      */
     fun getLowestSetBit(): Int {
-        return if (this.signum == 0) {
-            -1
-        } else {
-            // Search for lowest order nonzero int
-            var i = 0
-            var b = getInt(i)
-            while (b == 0) {
-                i += 1
-                b = getInt(i)
+        var lsb = lowestSetBitPlusTwo - 2
+        if (lsb == -2) {  // lowestSetBit not initialized yet
+            lsb = 0
+            if (signum == 0) {
+                lsb -= 1
+            } else {
+                // Search for lowest order nonzero int
+                var i = 0
+                var b: Int = getInt(i)
+                while (b == 0) {
+                    i += 1
+                    b = getInt(i)
+                }
+                lsb += (i shl 5) + Integers.numberOfTrailingZeros(b)
             }
-            (i shl 5) + Integers.numberOfTrailingZeros(b)
+            lowestSetBitPlusTwo = lsb + 2
         }
+        return lsb
     }
 
     // ----==== Shift Operations ====----

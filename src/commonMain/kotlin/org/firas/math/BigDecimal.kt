@@ -640,8 +640,7 @@ internal constructor(
          * in the meantime, the BIG_TEN_POWERS_TABLE array gets
          * expanded to the size greater than n.
          */
-        // TODO: synchronized (BigDecimal::class)
-        private fun expandBigIntegerTenPowers(n: Int): BigInteger {
+        internal fun _expandBigIntegerTenPowers(n: Int): BigInteger {
             var pows = BIG_TEN_POWERS_TABLE
             val curLen = pows.size
             // The following comparison and the above synchronized statement is
@@ -2196,3 +2195,5 @@ internal constructor(
         return asInt
     }
 }
+
+internal expect fun expandBigIntegerTenPowers(n: Int): BigInteger
