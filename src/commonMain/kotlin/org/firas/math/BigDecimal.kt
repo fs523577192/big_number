@@ -1906,7 +1906,7 @@ internal constructor(
      * @return -1, 0, or 1 as this `BigDecimal` is numerically
      * less than, equal to, or greater than `val`.
      */
-    override fun compareTo(other: BigDecimal): Int {
+    override operator fun compareTo(other: BigDecimal): Int {
         // Quick path for equal scale and non-inflated case.
         if (this.scale == other.scale) {
             val xs = this.intCompact

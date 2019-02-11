@@ -450,6 +450,21 @@ class BigInteger: Number, Comparable<BigInteger> {
 
     companion object {
         /**
+         * Initialize static constant array when class is loaded.
+         *
+         * Should place before ONE, TWO, TEN and NEGATIVE_ONE,
+         * or posConst and negConst are still null when valueOf
+         * is called
+         */
+        private const val MAX_CONSTANT = 16
+        private val posConst = Array(MAX_CONSTANT + 1) {
+            BigInteger(intArrayOf(it), 1)
+        }
+        private val negConst = Array(MAX_CONSTANT + 1) {
+            BigInteger(intArrayOf(it), -1)
+        }
+
+        /**
          * The BigInteger constant zero.
          *
          * @since   Java 1.2
@@ -481,55 +496,6 @@ class BigInteger: Number, Comparable<BigInteger> {
          * @since   Java 1.5
          */
         val TEN = valueOf(10)
-
-        // ----==== Static Factory Methods ====----
-        /**
-         * Returns a BigInteger whose value is equal to that of the
-         * specified `long`.  This "static factory method" is
-         * provided in preference to a (`long`) constructor
-         * because it allows for reuse of frequently used BigIntegers.
-         *
-         * @param  value value of the BigInteger to return.
-         * @return a BigInteger with the specified value.
-         */
-        fun valueOf(value: Long): BigInteger {
-            // If -MAX_CONSTANT < val < MAX_CONSTANT, return stashed constant
-            if (value == 0L) {
-                return ZERO
-            }
-            if (value in 1..MAX_CONSTANT) {
-                return posConst[value.toInt()]!!
-            } else if (value < 0 && value >= -MAX_CONSTANT) {
-                return negConst[(-value).toInt()]!!
-            }
-            return BigInteger(value)
-        }
-
-        /**
-         * Constructs a randomly generated BigInteger, uniformly distributed over
-         * the range 0 to (2<sup>`numBits`</sup> - 1), inclusive.
-         * The uniformity of the distribution assumes that a fair source of random
-         * bits is provided in `rnd`.  Note that this constructor always
-         * constructs a non-negative BigInteger.
-         *
-         * @param  numBits maximum bitLength of the new BigInteger.
-         * @param  rnd source of randomness to be used in computing the new
-         * BigInteger.
-         * @throws IllegalArgumentException `numBits` is negative.
-         * @see .bitLength
-         */
-        fun fromRandom(numBits: Int, rnd: Random): BigInteger {
-            return BigInteger(1, randomBits(numBits, rnd))
-        }
-
-        /**
-         * Returns a BigInteger with the given two's complement representation.
-         * Assumes that the input array will not be modified (the returned
-         * BigInteger will reference the input array if feasible).
-         */
-        private fun valueOf(value: IntArray): BigInteger {
-            return if (value[0] > 0) BigInteger(value, 1) else BigInteger(value)
-        }
 
         /**
          * This mask is used to obtain the value of an int as if it were unsigned.
@@ -659,56 +625,75 @@ class BigInteger: Number, Comparable<BigInteger> {
                 5025, 5074, 5120, 5166, 5210,
                 5253, 5295)
 
+        // ----==== Static Factory Methods ====----
         /**
-         * Initialize static constant array when class is loaded.
+         * Returns a BigInteger whose value is equal to that of the
+         * specified `long`.  This "static factory method" is
+         * provided in preference to a (`long`) constructor
+         * because it allows for reuse of frequently used BigIntegers.
+         *
+         * @param  value value of the BigInteger to return.
+         * @return a BigInteger with the specified value.
          */
-        private const val MAX_CONSTANT = 16
-        private val posConst = arrayOfNulls<BigInteger>(MAX_CONSTANT + 1)
-        private val negConst = arrayOfNulls<BigInteger>(MAX_CONSTANT + 1)
+        fun valueOf(value: Long): BigInteger {
+            // If -MAX_CONSTANT < val < MAX_CONSTANT, return stashed constant
+            return when (value) {
+                0L -> ZERO
+                in 1..MAX_CONSTANT -> posConst[value.toInt()]
+                in -MAX_CONSTANT..-1 -> negConst[(-value).toInt()]
+                else -> BigInteger(value)
+            }
+        }
+
+        /**
+         * Constructs a randomly generated BigInteger, uniformly distributed over
+         * the range 0 to (2<sup>`numBits`</sup> - 1), inclusive.
+         * The uniformity of the distribution assumes that a fair source of random
+         * bits is provided in `rnd`.  Note that this constructor always
+         * constructs a non-negative BigInteger.
+         *
+         * @param  numBits maximum bitLength of the new BigInteger.
+         * @param  rnd source of randomness to be used in computing the new
+         * BigInteger.
+         * @throws IllegalArgumentException `numBits` is negative.
+         * @see .bitLength
+         */
+        fun fromRandom(numBits: Int, rnd: Random): BigInteger {
+            return BigInteger(1, randomBits(numBits, rnd))
+        }
+
+        /**
+         * Returns a BigInteger with the given two's complement representation.
+         * Assumes that the input array will not be modified (the returned
+         * BigInteger will reference the input array if feasible).
+         */
+        private fun valueOf(value: IntArray): BigInteger {
+            return if (value[0] > 0) BigInteger(value, 1) else BigInteger(value)
+        }
 
         /**
          * The cache of powers of each radix.  This allows us to not have to
          * recalculate powers of radix^(2^n) more than once.  This speeds
          * Schoenhage recursive base conversion significantly.
          */
-        private var powerCache: Array<Array<BigInteger>>? = null
+        private var powerCache: Array<Array<BigInteger>> = Array(Character.MAX_RADIX + 1) {
+            if (it < Character.MIN_RADIX) arrayOf() else arrayOf(BigInteger.valueOf(it.toLong()))
+        }
 
         /** The cache of logarithms of radices for base conversion.  */
-        private var logCache: DoubleArray? = null
+        private var logCache: DoubleArray = DoubleArray(Character.MAX_RADIX + 1) {
+            if (it < Character.MIN_RADIX) 0.0 else kotlin.math.ln(it.toDouble())
+        }
 
         /** The natural log of 2.  This is used in computing cache indices.  */
         private val LOG_TWO = kotlin.math.ln(2.0)
 
         /* zero[i] is a string of i consecutive zeros. */
-        private val zeros = arrayOfNulls<String>(64)
+        private val zeros = Array(64) {
+            "000000000000000000000000000000000000000000000000000000000000000".substring(0, it)
+        }
 
         private val bnExpModThreshTable = intArrayOf(7, 25, 81, 241, 673, 1793, Int.MAX_VALUE) // Sentinel
-
-        init {
-            for (i in 1 .. MAX_CONSTANT) {
-                val magnitude = IntArray(1)
-                magnitude[0] = i
-                posConst[i] = BigInteger(magnitude, 1)
-                negConst[i] = BigInteger(magnitude, -1)
-            }
-
-            /*
-             * Initialize the cache of radix^(2^x) values used for base conversion
-             * with just the very first value.  Additional values will be created
-             * on demand.
-             */
-            powerCache = Array(Character.MAX_RADIX + 1) {
-                i -> if (i < Character.MIN_RADIX) arrayOf() else arrayOf(BigInteger.valueOf(i.toLong()))
-            }
-            logCache = DoubleArray(Character.MAX_RADIX + 1) {
-                i -> if (i < Character.MIN_RADIX) 0.0 else kotlin.math.ln(i.toDouble())
-            }
-
-            zeros[63] = "000000000000000000000000000000000000000000000000000000000000000"
-            for (i in 0 .. 62) {
-                zeros[i] = zeros[63]!!.substring(0, i)
-            }
-        }
 
         /**
          * Package private method to return bit length for an integer.
@@ -1511,7 +1496,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return -1, 0 or 1 as this BigInteger is numerically less than, equal
      * to, or greater than `other`.
      */
-    override fun compareTo(other: BigInteger): Int {
+    override operator fun compareTo(other: BigInteger): Int {
         if (signum == other.signum) {
             return when (signum) {
                 1 -> compareMagnitude(other)
@@ -1520,6 +1505,74 @@ class BigInteger: Number, Comparable<BigInteger> {
             }
         }
         return if (signum > other.signum) 1 else -1
+    }
+
+    /**
+     * Returns the minimum of this BigInteger and `other`.
+     *
+     * @param  other value with which the minimum is to be computed.
+     * @return the BigInteger whose value is the lesser of this BigInteger and
+     * `other`.  If they are equal, either may be returned.
+     */
+    fun min(other: BigInteger): BigInteger {
+        return if (compareTo(other) < 0) this else other
+    }
+
+    /**
+     * Returns the maximum of this BigInteger and `other`.
+     *
+     * @param  other value with which the maximum is to be computed.
+     * @return the BigInteger whose value is the greater of this and
+     * `other`.  If they are equal, either may be returned.
+     */
+    fun max(other: BigInteger): BigInteger {
+        return if (compareTo(other) > 0) this else other
+    }
+
+    /**
+     * Compares this BigInteger with the specified Object for equality.
+     *
+     * @param  other Object to which this BigInteger is to be compared.
+     * @return `true` if and only if the specified Object is a
+     * BigInteger whose value is numerically equal to this BigInteger.
+     */
+    override fun equals(other: Any?): Boolean {
+        // This test is just an optimization, which may or may not help
+        if (other === this) {
+            return true
+        }
+        if (other !is BigInteger) {
+            return false
+        }
+        if (other.signum != this.signum) {
+            return false
+        }
+        val m = this.mag
+        val len = m.size
+        val xm = other.mag
+        if (len != xm.size) {
+            return false
+        }
+        for (i in 0 until len) {
+            if (xm[i] != m[i]) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /**
+     * Returns the hash code for this BigInteger.
+     *
+     * @return hash code for this BigInteger.
+     */
+    override fun hashCode(): Int {
+        var hashCode = 0
+
+        for (i in 0 until this.mag.size) {
+            hashCode = 31 * hashCode + (this.mag[i].toLong() and LONG_MASK).toInt()
+        }
+        return hashCode * this.signum
     }
 
     /**
@@ -2647,7 +2700,7 @@ class BigInteger: Number, Comparable<BigInteger> {
 
         // Special case: entire contents shifted off the end
         if (nInts >= magLen)
-            return if (signum >= 0) ZERO else negConst[1]!!
+            return if (signum >= 0) ZERO else negConst[1]
 
         if (nBits == 0) {
             val newMagLen = magLen - nInts

@@ -1583,8 +1583,8 @@ internal open class MutableBigInteger private constructor(
         for (j in 0 until limit) {
             // D3 Calculate qhat
             // estimate qhat
-            var qhat = 0
-            var qrem = 0
+            var qhat: Int
+            var qrem: Int
             var skipCorrection = false
             val nh = rem.value[j + rem.offset]
             val nh2 = nh + -0x80000000

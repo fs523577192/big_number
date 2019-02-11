@@ -324,7 +324,7 @@ internal class PrimeUtils private constructor() {
             var searchSieve = BitSieve(p, searchLen)
             var candidate = searchSieve.retrieve(p, certainty, rnd)
 
-            while (candidate == null || candidate!!.bitLength() != bitLength) {
+            while (candidate == null || candidate.bitLength() != bitLength) {
                 p = p.plus(BigInteger.valueOf(2L * searchLen))
                 if (p.bitLength() != bitLength) {
                     p = BigInteger.fromRandom(bitLength, rnd).setBit(bitLength - 1)
