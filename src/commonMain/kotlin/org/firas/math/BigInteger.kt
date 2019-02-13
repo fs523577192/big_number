@@ -1425,21 +1425,8 @@ class BigInteger: Number, Comparable<BigInteger> {
             }
         }
 
-        val signifFloor = twiceSignifFloor shr 1
-
-        /*
-         * We round up if either the fractional part of signif is strictly
-         * greater than 0.5 (which is true if the 0.5 bit is set and any lower
-         * bit is set), or if the fractional part of signif is >= 0.5 and
-         * signifFloor is odd (which is true if both the 0.5 bit and the 1 bit
-         * are set). This is equivalent to the desired HALF_EVEN rounding.
-         */
-        val increment = twiceSignifFloor.and(1) != 0 &&
-                (signifFloor.and(1) != 0 || abs().getLowestSetBit() < shift)
-        val signifRounded: Float = if (increment) signifFloor + 1f else signifFloor.toFloat()
-
-        var f = signifRounded * (1L shl shift.and(Long.SIZE_BITS.shr(1) - 1)).toFloat()
-        for (i in 1..shift.shl(5)) {
+        var f = twiceSignifFloor * (1L shl shift.and(Long.SIZE_BITS.shr(1) - 1)).toFloat()
+        for (i in 1..shift.shr(5)) {
             f *= 1L.shl(Long.SIZE_BITS.shr(1)).toFloat()
         }
         return if (this.signum > 0) f else -f
@@ -1494,21 +1481,8 @@ class BigInteger: Number, Comparable<BigInteger> {
 
         twiceSignifFloor = highBits.toLong().and(LONG_MASK).shl(32) or lowBits.toLong().and(LONG_MASK)
 
-        val signifFloor = twiceSignifFloor shr 1
-
-        /*
-         * We round up if either the fractional part of signif is strictly
-         * greater than 0.5 (which is true if the 0.5 bit is set and any lower
-         * bit is set), or if the fractional part of signif is >= 0.5 and
-         * signifFloor is odd (which is true if both the 0.5 bit and the 1 bit
-         * are set). This is equivalent to the desired HALF_EVEN rounding.
-         */
-        val increment = twiceSignifFloor and 1L != 0L &&
-                (signifFloor and 1L != 0L || abs().getLowestSetBit() < shift)
-        val signifRounded = if (increment) signifFloor + 1 else signifFloor
-
-        var d = signifRounded * (1L shl shift.and(Long.SIZE_BITS.shr(1) - 1)).toDouble()
-        for (i in 1..shift.shl(5)) {
+        var d = twiceSignifFloor * (1L shl shift.and(Long.SIZE_BITS.shr(1) - 1)).toDouble()
+        for (i in 1..shift.shr(5)) {
             d *= 1L.shl(Long.SIZE_BITS.shr(1)).toDouble()
         }
         return if (this.signum > 0) d else -d
