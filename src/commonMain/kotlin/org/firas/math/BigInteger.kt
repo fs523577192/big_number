@@ -1384,14 +1384,134 @@ class BigInteger: Number, Comparable<BigInteger> {
     }
 
     override fun toFloat(): Float {
-        return toLong().toFloat()
+        if (this.signum == 0) {
+            return 0.0f
+        }
+
+        val exponent = (this.mag.size - 1).shl(5) + bitLengthForInt(this.mag[0]) - 1
+
+        // exponent == floor(log2(abs(this)))
+        if (exponent < Long.SIZE_BITS - 1) {
+            return toLong().toFloat()
+        } else if (exponent > FloatConsts.MAX_EXPONENT) {
+            return if (this.signum > 0) Float.POSITIVE_INFINITY else Float.NEGATIVE_INFINITY
+        }
+
+        /*
+         * We need the top SIGNIFICAND_WIDTH bits, including the "implicit"
+         * one bit. To make rounding easier, we pick out the top
+         * SIGNIFICAND_WIDTH + 1 bits, so we have one to help us round up or
+         * down. twiceSignifFloor will contain the top SIGNIFICAND_WIDTH + 1
+         * bits, and signifFloor the top SIGNIFICAND_WIDTH.
+         *
+         * It helps to consider the real number signif = abs(this) *
+         * 2^(SIGNIFICAND_WIDTH - 1 - exponent).
+         */
+        val shift = exponent - FloatConsts.SIGNIFICAND_WIDTH
+
+        var twiceSignifFloor: Int
+        // twiceSignifFloor will be == abs().shiftRight(shift).intValue()
+        // We do the shift into an int directly to improve performance.
+
+        val nBits = shift and (Int.SIZE_BITS - 1)
+        val nBits2 = Int.SIZE_BITS - nBits
+
+        if (nBits == 0) {
+            twiceSignifFloor = this.mag[0]
+        } else {
+            twiceSignifFloor = this.mag[0].ushr(nBits)
+            if (twiceSignifFloor == 0) {
+                twiceSignifFloor = this.mag[0].shl(nBits2) or this.mag[1].ushr(nBits)
+            }
+        }
+
+        val signifFloor = twiceSignifFloor shr 1
+
+        /*
+         * We round up if either the fractional part of signif is strictly
+         * greater than 0.5 (which is true if the 0.5 bit is set and any lower
+         * bit is set), or if the fractional part of signif is >= 0.5 and
+         * signifFloor is odd (which is true if both the 0.5 bit and the 1 bit
+         * are set). This is equivalent to the desired HALF_EVEN rounding.
+         */
+        val increment = twiceSignifFloor.and(1) != 0 &&
+                (signifFloor.and(1) != 0 || abs().getLowestSetBit() < shift)
+        val signifRounded: Float = if (increment) signifFloor + 1f else signifFloor.toFloat()
+
+        var f = signifRounded * (1L shl shift.and(Long.SIZE_BITS.shr(1) - 1)).toFloat()
+        for (i in 1..shift.shl(5)) {
+            f *= 1L.shl(Long.SIZE_BITS.shr(1)).toFloat()
+        }
+        return if (this.signum > 0) f else -f
     }
 
     override fun toDouble(): Double {
-        return if (this.mag.size <= 2 && bitLength() <= 63)
-            toLong().toDouble()
-        else
-            TODO("not implemented")
+        if (this.signum == 0) {
+            return 0.0
+        }
+
+        val exponent = (mag.size - 1).shl(5) + bitLengthForInt(mag[0]) - 1
+
+        // exponent == floor(log2(abs(this))Double)
+        if (exponent < Long.SIZE_BITS - 1) {
+            return toLong().toDouble()
+        } else if (exponent > DoubleConsts.MAX_EXPONENT) {
+            return if (this.signum > 0) Double.POSITIVE_INFINITY else Double.NEGATIVE_INFINITY
+        }
+
+        /*
+         * We need the top SIGNIFICAND_WIDTH bits, including the "implicit"
+         * one bit. To make rounding easier, we pick out the top
+         * SIGNIFICAND_WIDTH + 1 bits, so we have one to help us round up or
+         * down. twiceSignifFloor will contain the top SIGNIFICAND_WIDTH + 1
+         * bits, and signifFloor the top SIGNIFICAND_WIDTH.
+         *
+         * It helps to consider the real number signif = abs(this) *
+         * 2^(SIGNIFICAND_WIDTH - 1 - exponent).
+         */
+        val shift = exponent - DoubleConsts.SIGNIFICAND_WIDTH
+
+        val twiceSignifFloor: Long
+        // twiceSignifFloor will be == abs().shiftRight(shift).longValue()
+        // We do the shift into a long directly to improve performance.
+
+        val nBits = shift and (Int.SIZE_BITS - 1)
+        val nBits2 = Int.SIZE_BITS - nBits
+
+        var highBits: Int
+        var lowBits: Int
+        if (nBits == 0) {
+            highBits = this.mag[0]
+            lowBits = this.mag[1]
+        } else {
+            highBits = this.mag[0].ushr(nBits)
+            lowBits = this.mag[0].shl(nBits2) or this.mag[1].ushr(nBits)
+            if (highBits == 0) {
+                highBits = lowBits
+                lowBits = this.mag[1].shl(nBits2) or this.mag[2].ushr(nBits)
+            }
+        }
+
+        twiceSignifFloor = highBits.toLong().and(LONG_MASK).shl(32) or lowBits.toLong().and(LONG_MASK)
+
+        val signifFloor = twiceSignifFloor shr 1
+
+        /*
+         * We round up if either the fractional part of signif is strictly
+         * greater than 0.5 (which is true if the 0.5 bit is set and any lower
+         * bit is set), or if the fractional part of signif is >= 0.5 and
+         * signifFloor is odd (which is true if both the 0.5 bit and the 1 bit
+         * are set). This is equivalent to the desired HALF_EVEN rounding.
+         */
+        val increment = twiceSignifFloor and 1L != 0L &&
+                (signifFloor and 1L != 0L || abs().getLowestSetBit() < shift)
+        val signifRounded = if (increment) signifFloor + 1 else signifFloor
+
+        var d = signifRounded * (1L shl shift.and(Long.SIZE_BITS.shr(1) - 1)).toDouble()
+        for (i in 1..shift.shl(5)) {
+            d *= 1L.shl(Long.SIZE_BITS.shr(1)).toDouble()
+        }
+        return if (this.signum > 0) d else -d
     }
 
     override fun toChar(): Char {
@@ -1812,6 +1932,89 @@ class BigInteger: Number, Comparable<BigInteger> {
             // because shiftLeft considers its argument unsigned
             BigInteger(shiftLeft(this.mag, -n), this.signum)
         }
+    }
+
+    // ----==== Bitwise Operations ====----
+
+    /**
+     * Returns a BigInteger whose value is `(this & other)`.  (This
+     * method returns a negative BigInteger if and only if this and other are
+     * both negative.)
+     *
+     * @param other value to be AND'ed with this BigInteger.
+     * @return `this & other`
+     */
+    fun and(other: BigInteger): BigInteger {
+        val result = IntArray(maxOf(intLength(), other.intLength()))
+        for (i in result.indices) {
+            result[i] = getInt(result.size - i - 1) and other.getInt(result.size - i - 1)
+        }
+        return valueOf(result)
+    }
+
+    /**
+     * Returns a BigInteger whose value is `(this | other)`.  (This method
+     * returns a negative BigInteger if and only if either this or other is
+     * negative.)
+     *
+     * @param other value to be OR'ed with this BigInteger.
+     * @return `this | other`
+     */
+    fun or(other: BigInteger): BigInteger {
+        val result = IntArray(maxOf(intLength(), other.intLength()))
+        for (i in result.indices) {
+            result[i] = getInt(result.size - i - 1) or other.getInt(result.size - i - 1)
+        }
+        return valueOf(result)
+    }
+
+    /**
+     * Returns a BigInteger whose value is `(this ^ other)`.  (This method
+     * returns a negative BigInteger if and only if exactly one of this and
+     * other are negative.)
+     *
+     * @param other value to be XOR'ed with this BigInteger.
+     * @return `this ^ other`
+     */
+    fun xor(other: BigInteger): BigInteger {
+        val result = IntArray(maxOf(intLength(), other.intLength()))
+        for (i in result.indices) {
+            result[i] = getInt(result.size - i - 1) xor other.getInt(result.size - i - 1)
+        }
+        return valueOf(result)
+    }
+
+    /**
+     * Returns a BigInteger whose value is `(~this)`.  (This method
+     * returns a negative value if and only if this BigInteger is
+     * non-negative.)
+     *
+     * @return `~this`
+     */
+    operator fun not(): BigInteger {
+        val result = IntArray(intLength())
+        for (i in result.indices) {
+            result[i] = getInt(result.size - i - 1).inv()
+        }
+        return valueOf(result)
+    }
+
+    /**
+     * Returns a BigInteger whose value is `(this & ~other)`.  This
+     * method, which is equivalent to `and(other.not())`, is provided as
+     * a convenience for masking operations.  (This method returns a negative
+     * BigInteger if and only if `this` is negative and `other` is
+     * positive.)
+     *
+     * @param other value to be complemented and AND'ed with this BigInteger.
+     * @return `this & ~other`
+     */
+    fun andNot(other: BigInteger): BigInteger {
+        val result = IntArray(maxOf(intLength(), other.intLength()))
+        for (i in result.indices) {
+            result[i] = getInt(result.size - i - 1) and other.getInt(result.size - i - 1).inv()
+        }
+        return valueOf(result)
     }
 
     /**
