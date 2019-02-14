@@ -76,7 +76,7 @@ internal class SignedMutableBigInteger: MutableBigInteger {
      */
     fun signedAdd(addend: SignedMutableBigInteger) {
         if (this.sign == addend.sign) {
-            add(addend)
+            plusAssign(addend)
         } else {
             this.sign = this.sign * subtract(addend)
         }
@@ -87,7 +87,7 @@ internal class SignedMutableBigInteger: MutableBigInteger {
      */
     fun signedAdd(addend: MutableBigInteger) {
         if (this.sign == 1) {
-            add(addend)
+            plusAssign(addend)
         } else {
             this.sign = this.sign * subtract(addend)
         }
@@ -100,7 +100,7 @@ internal class SignedMutableBigInteger: MutableBigInteger {
         if (this.sign == addend.sign) {
             this.sign = this.sign * subtract(addend)
         } else {
-            add(addend)
+            plusAssign(addend)
         }
     }
 
@@ -111,7 +111,7 @@ internal class SignedMutableBigInteger: MutableBigInteger {
         if (this.sign == 1) {
             this.sign = this.sign * subtract(addend)
         } else {
-            add(addend)
+            plusAssign(addend)
         }
         if (this.intLen == 0) {
             this.sign = 1

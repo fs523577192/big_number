@@ -1059,7 +1059,7 @@ internal constructor(
             else {
                 var unscaledVal = bigTenToThe(n)
                 if (sign == -1) {
-                    unscaledVal = unscaledVal.negate()
+                    unscaledVal = -unscaledVal
                 }
                 BigDecimal(unscaledVal, INFLATED, scale, n + 1)
             }
@@ -1241,7 +1241,7 @@ internal constructor(
             val qsign = if (ldivisor < 0) -bdividend.signum else bdividend.signum
             if (!isRemainderZero) {
                 if (needIncrement(ldivisor, roundingMode, qsign, mq, r)) {
-                    mq.add(MutableBigInteger.ONE)
+                    mq += MutableBigInteger.ONE
                 }
             }
             return mq.toBigInteger(qsign)
@@ -1272,7 +1272,7 @@ internal constructor(
             val qsign = if (ldivisor < 0) -bdividend.signum else bdividend.signum
             if (!isRemainderZero) {
                 if (needIncrement(ldivisor, roundingMode, qsign, mq, r)) {
-                    mq.add(MutableBigInteger.ONE)
+                    mq += MutableBigInteger.ONE
                 }
                 return mq.toBigDecimal(qsign, scale)
             } else {
@@ -1541,6 +1541,8 @@ internal constructor(
      * augend)`, and whose scale is `max(this.scale(),
      * augend.scale())`.
      *
+     * Rename from `add` to `plus` to accord with `Int.plus` in Kotlin
+     *
      * @param  augend value to be added to this `BigDecimal`.
      * @return `this + augend`
      */
@@ -1565,6 +1567,8 @@ internal constructor(
      * subtrahend)`, and whose scale is `max(this.scale(),
      * subtrahend.scale())`.
      *
+     * Rename from `subtract` to `minus` to accord with `Int.minus` in Kotlin
+     *
      * @param  subtrahend value to be subtracted from this `BigDecimal`.
      * @return `this - subtrahend`
      */
@@ -1573,7 +1577,7 @@ internal constructor(
             if (subtrahend.intCompact != INFLATED) {
                 add(this.intCompact, this.scale, -subtrahend.intCompact, subtrahend.scale)
             } else {
-                add(this.intCompact, this.scale, subtrahend.intVal!!.negate(), subtrahend.scale)
+                add(this.intCompact, this.scale, subtrahend.intVal!!.unaryMinus(), subtrahend.scale)
             }
         } else {
             if (subtrahend.intCompact != INFLATED) {
@@ -1582,7 +1586,7 @@ internal constructor(
                 // method overloading on the specialized add method
                 add(-subtrahend.intCompact, subtrahend.scale, this.intVal!!, this.scale)
             } else {
-                add(this.intVal!!, this.scale, subtrahend.intVal!!.negate(), subtrahend.scale)
+                add(this.intVal!!, this.scale, subtrahend.intVal!!.unaryMinus(), subtrahend.scale)
             }
         }
     }
@@ -1591,6 +1595,8 @@ internal constructor(
      * Returns a `BigDecimal` whose value is <tt>(this
      * multiplicand)</tt>, and whose scale is `(this.scale() +
      * multiplicand.scale())`.
+     *
+     * Rename from `multiply` to `times` to accord with `Int.times` in Kotlin
      *
      * @param  multiplicand value to be multiplied by this `BigDecimal`.
      * @return `this * multiplicand`
@@ -1620,18 +1626,20 @@ internal constructor(
      * @return `abs(this)`
      */
     fun abs(): BigDecimal {
-        return if (signum() < 0) negate() else this
+        return if (signum() < 0) -this else this
     }
 
     /**
      * Returns a `BigDecimal` whose value is `(-this)`,
      * and whose scale is `this.scale()`.
      *
+     * Rename from `negate` to `unaryMinus` to accord with the `unaryMinus` operator in Kotlin
+     *
      * @return `-this`.
      */
-    fun negate(): BigDecimal {
+    operator fun unaryMinus(): BigDecimal {
         return if (this.intCompact == INFLATED) {
-            BigDecimal(this.intVal!!.negate(), INFLATED, this.scale, this.precision)
+            BigDecimal(this.intVal!!.unaryMinus(), INFLATED, this.scale, this.precision)
         } else {
             valueOf(-this.intCompact, this.scale, this.precision)
         }

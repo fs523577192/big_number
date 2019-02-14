@@ -261,7 +261,7 @@ internal open class MutableBigInteger private constructor(
                 val v = r * c.value[c.offset + c.intLen-1]
                 // c = c + (v * p)
                 p.mul(v, temp)
-                c.add(temp)
+                c += temp
                 // c = c / 2^j
                 c.intLen -= 1
             }
@@ -272,7 +272,7 @@ internal open class MutableBigInteger private constructor(
                 v = v and ((1 shl numBits) - 1)
                 // c = c + (v * p)
                 p.mul(v, temp)
-                c.add(temp)
+                c += temp
                 // c = c / 2^j
                 c.rightShift(numBits)
             }
@@ -283,7 +283,7 @@ internal open class MutableBigInteger private constructor(
             }
             return c
         }
-    }
+    } // companion object
 
     /**
      * The offset into the value array where the magnitude of this
@@ -1167,7 +1167,7 @@ internal open class MutableBigInteger private constructor(
             }
             // final iteration of step 8: do the loop one more time for i=0 but leave z unchanged
             ri = z.divide2n1n(bShifted, qi)!!
-            quotient.add(qi)
+            quotient += qi
 
             ri.rightShift(sigma)   // step 9: this and b were shifted, so shift back
             return ri
@@ -1242,7 +1242,7 @@ internal open class MutableBigInteger private constructor(
         } else {
             // step 3b: if a1>=b1, let quotient=beta^n-1 and r=a12-b1*2^n+b1
             quotient.ones(n)
-            a12.add(b1)
+            a12 += b1
             b1.leftShift(32*n)
             a12.subtract(b1)
             r = a12
@@ -1260,7 +1260,7 @@ internal open class MutableBigInteger private constructor(
 
         // step 6: add b until r>=d
         while (r.compare(d) < 0) {
-            r.add(b)
+            r += b
             quotient.subtract(MutableBigInteger.ONE)
         }
         r.subtract(d)
@@ -1728,7 +1728,7 @@ internal open class MutableBigInteger private constructor(
         evenPart.multiply(oddMod, temp1)
         temp1.multiply(y2, temp2)
 
-        result.add(temp2)
+        result += temp2
         return result.divide(p, temp1)
     }
 
@@ -1779,7 +1779,7 @@ internal open class MutableBigInteger private constructor(
                 f.subtract(g)
                 c.signedSubtract(d)
             } else { // If f != g (mod 4)
-                f.add(g)
+                f += g
                 c.signedAdd(d)
             }
 
@@ -1986,7 +1986,7 @@ internal open class MutableBigInteger private constructor(
             do {
                 // xk1 = (xk + n/xk)/2
                 this.divide(xk, xk1, false)
-                xk1.add(xk)
+                xk1 += xk
                 xk1.rightShift(1)
 
                 // Terminate when non-decreasing.
@@ -2167,8 +2167,10 @@ internal open class MutableBigInteger private constructor(
      * Adds the contents of two MutableBigInteger objects.The result
      * is placed within this MutableBigInteger.
      * The contents of the addend are not changed.
+     *
+     * Rename from `add` to `plusAssign` to accord with the `plusAssign` operator in Kotlin
      */
-    internal fun add(addend: MutableBigInteger) {
+    internal operator fun plusAssign(addend: MutableBigInteger) {
         var x = this.intLen
         var y = addend.intLen
         var resultLen = if (this.intLen > addend.intLen) this.intLen else addend.intLen
@@ -2222,11 +2224,11 @@ internal open class MutableBigInteger private constructor(
         this.value = result
         this.intLen = resultLen
         this.offset = result.size - resultLen
-    } // internal fun add(addend: MutableBigInteger)
+    } // internal fun plusAssign(addend: MutableBigInteger)
 
     /**
      * Adds the value of `addend` shifted `n` ints to the left.
-     * Has the same effect as `addend.leftShift(32*ints); add(addend);`
+     * Has the same effect as `addend.leftShift(32*ints); plusAssign(addend);`
      * but doesn't change the value of `addend`.
      */
     private fun addShifted(addend: MutableBigInteger, n: Int) {
@@ -2344,7 +2346,7 @@ internal open class MutableBigInteger private constructor(
             a.intLen = n
         }
         a.normalize()
-        add(a)
+        plusAssign(a)
     }
 
 }

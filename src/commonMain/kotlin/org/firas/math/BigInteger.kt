@@ -508,6 +508,16 @@ class BigInteger: Number, Comparable<BigInteger> {
          */
         private const val MAX_MAG_LENGTH = Int.MAX_VALUE / Int.SIZE_BITS + 1 // (1 << 26)
 
+        /**
+         * The threshold value for using Schoenhage recursive base conversion. If
+         * the number of ints in the number are larger than this value,
+         * the Schoenhage algorithm will be used.  In practice, it appears that the
+         * Schoenhage routine is faster for any threshold down to 2, and is
+         * relatively flat for thresholds between 2-25, so this choice may be
+         * varied within this range for very small effect.
+         */
+        private val SCHOENHAGE_BASE_CONVERSION_THRESHOLD = 20
+
         /*
          * The following two arrays are used for fast String conversions.  Both
          * are indexed by radix.  The first is the number of digits of the given
@@ -528,7 +538,7 @@ class BigInteger: Number, Comparable<BigInteger> {
                 12, 12, 12, 12, 12,
                 12, 12)
 
-        private val longRadix = arrayOf<BigInteger?>(null, null,
+        private val longRadix = arrayOf<BigInteger>(ZERO, ZERO, // The first two item is useless
                 valueOf(0x4000000000000000L),
                 valueOf(0x383d9170b85ff80bL),
                 valueOf(0x4000000000000000L),
@@ -1287,6 +1297,88 @@ class BigInteger: Number, Comparable<BigInteger> {
             return integers
         }
 
+        /**
+         * Converts the specified BigInteger to a string and appends to
+         * `sb`.  This implements the recursive Schoenhage algorithm
+         * for base conversions.
+         *
+         *
+         * See Knuth, Donald,  _The Art of Computer Programming_, Vol. 2,
+         * Answers to Exercises (4.4) Question 14.
+         *
+         * @param u      The number to convert to a string.
+         * @param sb     The StringBuilder that will be appended to in place.
+         * @param radix  The base to convert to.
+         * @param digits The minimum number of digits to pad to.
+         */
+        private fun toString(
+            u: BigInteger, sb: StringBuilder, radix: Int,
+            digits: Int
+        ) {
+            // If we're smaller than a certain threshold, use the smallToString
+            // method, padding with leading zeroes when necessary.
+            if (u.mag.size <= SCHOENHAGE_BASE_CONVERSION_THRESHOLD) {
+                val s = u.smallToString(radix)
+
+                // Pad with internal zeros if necessary.
+                // Don't pad if we're at the beginning of the string.
+                if (s.length < digits && sb.length > 0) {
+                    for (i in s.length until digits) {
+                        sb.append('0')
+                    }
+                }
+
+                sb.append(s)
+                return
+            }
+
+            val b = u.bitLength()
+            val n: Int
+
+            // Calculate a value for n in the equation radix^(2^n) = u
+            // and subtract 1 from that value.  This is used to find the
+            // cache index that contains the best value to divide u.
+            n = kotlin.math.round(kotlin.math.ln(b * LOG_TWO / logCache[radix]) / LOG_TWO - 1.0).toInt()
+            val v = getRadixConversionCache(radix, n)
+            val results: Array<BigInteger> = u.divideAndRemainder(v)
+
+            val expectedDigits = 1 shl n
+
+            // Now recursively build the two halves of each number.
+            toString(results[0], sb, radix, digits - expectedDigits)
+            toString(results[1], sb, radix, expectedDigits)
+        }
+
+        /**
+         * Returns the value radix^(2^exponent) from the cache.
+         * If this value doesn't already exist in the cache, it is added.
+         *
+         *
+         * This could be changed to a more complicated caching method using
+         * `Future`.
+         */
+        private fun getRadixConversionCache(radix: Int, exponent: Int): BigInteger {
+            val cacheLine: Array<BigInteger> = powerCache[radix] // volatile read
+            if (exponent < cacheLine.size) {
+                return cacheLine[exponent]
+            }
+
+            val oldLength = cacheLine.size
+            val cacheLine1 = cacheLine.copyOf(exponent + 1)
+            for (i in oldLength..exponent) {
+                cacheLine1[i] = cacheLine1[i - 1]!!.pow(2)
+            }
+            val cacheLine2 = cacheLine1.requireNoNulls()
+
+            var pc = powerCache // volatile read again
+            if (exponent >= pc[radix].size) {
+                pc = pc.copyOf()
+                pc[radix] = cacheLine2
+                powerCache = pc // volatile write, publish
+            }
+            return cacheLine2[exponent]
+        }
+
         private fun reportOverflow() {
             throw ArithmeticException("BigInteger would overflow supported range")
         }
@@ -1670,6 +1762,113 @@ class BigInteger: Number, Comparable<BigInteger> {
     }
 
     /**
+     * Returns the String representation of this BigInteger in the
+     * given radix.  If the radix is outside the range from {@link
+     * Character#MIN_RADIX} to {@link Character#MAX_RADIX} inclusive,
+     * it will default to 10 (as is the case for
+     * `Int.toString`.  The digit-to-character mapping
+     * provided by {@code Character.forDigit} is used, and a minus
+     * sign is prepended if appropriate.  (This representation is
+     * compatible with the {@link #BigInteger(String, int) (String,
+     * int)} constructor.)
+     *
+     * @param  radix  radix of the String representation.
+     * @return String representation of this BigInteger in the given radix.
+     * @see    Int#toString
+     * @see    Character#forDigit
+     * @see    #BigInteger(java.lang.String, int)
+     */
+    fun toString(radix: Int): String {
+        if (this.signum == 0) {
+            return "0"
+        }
+        var radix = radix
+        if (radix < Character.MIN_RADIX || radix > Character.MAX_RADIX) {
+            radix = 10
+        }
+        // If it's small enough, use smallToString.
+        if (mag.size <= SCHOENHAGE_BASE_CONVERSION_THRESHOLD) {
+            return smallToString(radix)
+        }
+        // Otherwise use recursive toString, which requires positive arguments.
+        // The results will be concatenated into this StringBuilder
+        val sb = StringBuilder()
+        return if (this.signum < 0) {
+            toString(-this, sb, radix, 0)
+            "-$sb"
+        } else {
+            toString(this, sb, radix, 0)
+            sb.toString()
+        }
+    }
+
+    /**
+     * Returns the decimal String representation of this BigInteger.
+     * The digit-to-character mapping provided by
+     * `Character.forDigit` is used, and a minus sign is
+     * prepended if appropriate.  (This representation is compatible
+     * with the [(String)][.BigInteger] constructor, and
+     * allows for String concatenation with Java's + operator.)
+     *
+     * @return decimal String representation of this BigInteger.
+     * @see Character.forDigit
+     *
+     * @see .BigInteger
+     */
+    override fun toString(): String {
+        return toString(10)
+    }
+
+    /** This method is used to perform toString when arguments are small. */
+    private fun smallToString(radix: Int): String {
+        if (this.signum == 0) {
+            return "0"
+        }
+
+        // Compute upper bound on number of digit groups and allocate space
+        val maxNumDigitGroups = (4 * this.mag.size + 6) / 7
+        val digitGroup = Array<String>(maxNumDigitGroups) { "" }
+
+        // Translate number to string, a digit group at a time
+        var tmp = this.abs()
+        var numGroups = 0
+        while (tmp.signum != 0) {
+            val d = longRadix[radix]
+
+            val q = MutableBigInteger()
+            val a = MutableBigInteger(tmp.mag)
+            val b = MutableBigInteger(d.mag)
+            val r = a.divide(b, q)
+            val q2 = q.toBigInteger(tmp.signum * d.signum)
+            val r2 = r.toBigInteger(tmp.signum * d.signum)
+
+            digitGroup[numGroups] = r2.toLong().toString(radix)
+            numGroups += 1
+            tmp = q2
+        }
+
+        // Put sign (if any) and first digit group into result buffer
+        val buf = StringBuilder(numGroups * digitsPerLong[radix] + 1)
+        if (signum < 0) {
+            buf.append('-')
+        }
+        buf.append(digitGroup[numGroups - 1])
+
+        // Append remaining digit groups padded with leading zeros
+        if (numGroups >= 2) {
+            for (i in numGroups - 2..0) {
+                // Prepend (any) leading zeros for this digit group
+                val numLeadingZeros = digitsPerLong[radix] - digitGroup[i].length
+                if (numLeadingZeros != 0) {
+                    buf.append(zeros[numLeadingZeros])
+                }
+                buf.append(digitGroup[i])
+            }
+        }
+        return buf.toString()
+    }
+
+    /**
      * Returns the number of bits in the minimal two's-complement
      * representation of this BigInteger, *excluding* a sign bit.
      * For positive BigIntegers, this is equivalent to the number of bits in
@@ -1868,7 +2067,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return `this << n`
      * @see .shiftRight
      */
-    fun shl(n: Int): BigInteger {
+    infix fun shl(n: Int): BigInteger {
         return if (this.signum == 0) {
             ZERO
         } else if (n > 0) {
@@ -1894,7 +2093,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return `this >> n`
      * @see .shiftLeft
      */
-    fun shr(n: Int): BigInteger {
+    infix fun shr(n: Int): BigInteger {
         return if (this.signum == 0) {
             ZERO
         } else if (n > 0) {
@@ -1918,7 +2117,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @param other value to be AND'ed with this BigInteger.
      * @return `this & other`
      */
-    fun and(other: BigInteger): BigInteger {
+    infix fun and(other: BigInteger): BigInteger {
         val result = IntArray(maxOf(intLength(), other.intLength()))
         for (i in result.indices) {
             result[i] = getInt(result.size - i - 1) and other.getInt(result.size - i - 1)
@@ -1934,7 +2133,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @param other value to be OR'ed with this BigInteger.
      * @return `this | other`
      */
-    fun or(other: BigInteger): BigInteger {
+    infix fun or(other: BigInteger): BigInteger {
         val result = IntArray(maxOf(intLength(), other.intLength()))
         for (i in result.indices) {
             result[i] = getInt(result.size - i - 1) or other.getInt(result.size - i - 1)
@@ -1950,7 +2149,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @param other value to be XOR'ed with this BigInteger.
      * @return `this ^ other`
      */
-    fun xor(other: BigInteger): BigInteger {
+    infix fun xor(other: BigInteger): BigInteger {
         val result = IntArray(maxOf(intLength(), other.intLength()))
         for (i in result.indices) {
             result[i] = getInt(result.size - i - 1) xor other.getInt(result.size - i - 1)
@@ -1993,10 +2192,11 @@ class BigInteger: Number, Comparable<BigInteger> {
 
     /**
      * Returns a BigInteger whose value is `(-this)`.
+     * Rename from `negate` to `unaryMinus` to accord with the `unaryMinus` operator in Kotlin
      *
      * @return `-this`
      */
-    fun negate(): BigInteger {
+    operator fun unaryMinus(): BigInteger {
         return BigInteger(this.mag, -this.signum)
     }
 
@@ -2007,7 +2207,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return `abs(this)`
      */
     fun abs(): BigInteger {
-        return if (this.signum >= 0) this else this.negate()
+        return if (this.signum >= 0) this else -this
     }
 
     /**
@@ -2084,7 +2284,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             return this
         }
         if (this.signum == 0) {
-            return value.negate()
+            return -value
         }
         if (value.signum != this.signum) {
             return BigInteger(add(this.mag, value.mag), this.signum)
@@ -2366,7 +2566,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             }
 
             return if (signum < 0 && exponent and 1 == 1) {
-                answer.negate()
+                -answer
             } else {
                 answer
             }
@@ -2428,7 +2628,7 @@ class BigInteger: Number, Comparable<BigInteger> {
         }
         val invertResult = exponent.signum < 0
         if (invertResult) {
-            exponent = exponent.negate()
+            exponent = -exponent
         }
         val base = if (this.signum < 0 || this >= m) this.rem(m) else this
         val result: BigInteger
@@ -2470,7 +2670,7 @@ class BigInteger: Number, Comparable<BigInteger> {
                 MutableBigInteger(a1 * m2).multiply(MutableBigInteger(y1), t1)
                 val t2 = MutableBigInteger()
                 MutableBigInteger(a2 * m1).multiply(MutableBigInteger(y2), t2)
-                t1.add(t2)
+                t1 += t2
                 val q = MutableBigInteger()
                 t1.divide(MutableBigInteger(m), q).toBigInteger()
             }

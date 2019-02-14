@@ -44,7 +44,7 @@ internal class AlgorithmUtils private constructor() {
          * Karatsuba multiplication will be used.   This value is found
          * experimentally to work well.
          */
-        internal val KARATSUBA_THRESHOLD = 80
+        internal const val KARATSUBA_THRESHOLD = 80
 
         /**
          * The threshold value for using 3-way Toom-Cook multiplication.
@@ -53,7 +53,7 @@ internal class AlgorithmUtils private constructor() {
          * the mag arrays is greater than this threshold, then Toom-Cook
          * multiplication will be used.
          */
-        internal val TOOM_COOK_THRESHOLD = 240
+        internal const val TOOM_COOK_THRESHOLD = 240
 
         /**
          * The threshold value for using Karatsuba squaring.  If the number
@@ -61,7 +61,7 @@ internal class AlgorithmUtils private constructor() {
          * Karatsuba squaring will be used.   This value is found
          * experimentally to work well.
          */
-        internal val KARATSUBA_SQUARE_THRESHOLD = 128
+        internal const val KARATSUBA_SQUARE_THRESHOLD = 128
 
         /**
          * The threshold value for using Toom-Cook squaring.  If the number
@@ -69,14 +69,14 @@ internal class AlgorithmUtils private constructor() {
          * Toom-Cook squaring will be used.   This value is found
          * experimentally to work well.
          */
-        internal val TOOM_COOK_SQUARE_THRESHOLD = 216
+        internal const val TOOM_COOK_SQUARE_THRESHOLD = 216
 
         /**
          * The threshold value for using Burnikel-Ziegler division.  If the number
          * of ints in the divisor are larger than this value, Burnikel-Ziegler
          * division may be used.  This value is found experimentally to work well.
          */
-        internal val BURNIKEL_ZIEGLER_THRESHOLD = 80
+        internal const val BURNIKEL_ZIEGLER_THRESHOLD = 80
 
         /**
          * The offset value for using Burnikel-Ziegler division.  If the number
@@ -85,17 +85,7 @@ internal class AlgorithmUtils private constructor() {
          * divisor plus this value, Burnikel-Ziegler division will be used.  This
          * value is found experimentally to work well.
          */
-        internal val BURNIKEL_ZIEGLER_OFFSET = 40
-
-        /**
-         * The threshold value for using Schoenhage recursive base conversion. If
-         * the number of ints in the number are larger than this value,
-         * the Schoenhage algorithm will be used.  In practice, it appears that the
-         * Schoenhage routine is faster for any threshold down to 2, and is
-         * relatively flat for thresholds between 2-25, so this choice may be
-         * varied within this range for very small effect.
-         */
-        private val SCHOENHAGE_BASE_CONVERSION_THRESHOLD = 20
+        internal const val BURNIKEL_ZIEGLER_OFFSET = 40
 
         /**
          * Multiplies two BigIntegers using the Karatsuba multiplication
@@ -135,7 +125,7 @@ internal class AlgorithmUtils private constructor() {
             val result = p1.shl(32 * half) + (p3 - p1 - p2).shl(32 * half) + p2
 
             return if (x.signum != y.signum) {
-                result.negate()
+                -result
             } else {
                 result
             }
@@ -237,7 +227,7 @@ internal class AlgorithmUtils private constructor() {
 
             val result = vinf.shl(ss).plus(t2).shl(ss).plus(t1).shl(ss).plus(tm1).shl(ss).plus(v0)
 
-            return if (a.signum != b.signum) result.negate() else result
+            return if (a.signum != b.signum) -result else result
         }
 
         /**
@@ -796,7 +786,7 @@ internal class AlgorithmUtils private constructor() {
                 swapper = q
                 q = temp
                 temp = swapper
-                t0.add(q)
+                t0 += q
 
                 if (a.isOne()) {
                     return t0
@@ -819,7 +809,7 @@ internal class AlgorithmUtils private constructor() {
                 q = temp
                 temp = swapper
 
-                t1.add(q)
+                t1 += q
             }
             mod.subtract(t1)
             return mod

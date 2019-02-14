@@ -13,11 +13,32 @@ import kotlin.test.assertEquals
 class BigIntegerTests {
 
     @Test
+    fun testToString() {
+        assertEquals(Long.MAX_VALUE.toString() + "00",
+                BigInteger.valueOf(Long.MAX_VALUE).times(BigInteger.valueOf(100)).toString())
+        val random = Random.Default
+        for (i in 1..10000) {
+            val l = random.nextLong()
+            assertEquals(l.toString(), BigInteger.valueOf(l).toString())
+        }
+    }
+
+    @Test
     fun testPlus() {
-        assertEquals(BigInteger.ZERO, BigInteger.ZERO + BigInteger.ZERO)
-        assertEquals(BigInteger.ONE, BigInteger.ZERO + BigInteger.ONE)
-        assertEquals(BigInteger.ONE, BigInteger.ONE + BigInteger.ZERO)
         assertEquals(BigInteger.TWO, BigInteger.ONE + BigInteger.ONE)
+
+        val random = Random.Default
+        for (i in 1..10000) {
+            val a = random.nextInt().toLong()
+            val b = random.nextInt().toLong()
+            val aa = BigInteger.valueOf(a)
+            val bb = BigInteger.valueOf(b)
+            assertEquals(a + b, aa.plus(bb).toLong())
+            assertEquals(a + b, bb.plus(aa).toLong())
+
+            assertEquals(aa, aa + BigInteger.ZERO)
+            assertEquals(aa, BigInteger.ZERO + aa)
+        }
     }
 
     @Test
@@ -26,6 +47,44 @@ class BigIntegerTests {
         assertEquals(BigInteger.ONE, BigInteger.ONE - BigInteger.ZERO)
         assertEquals(BigInteger.ZERO, BigInteger.ONE - BigInteger.ONE)
         assertEquals(BigInteger.ONE, BigInteger.TWO - BigInteger.ONE)
+
+        val random = Random.Default
+        for (i in 1..10000) {
+            val a = random.nextInt().toLong()
+            val b = random.nextInt().toLong()
+            val aa = BigInteger.valueOf(a)
+            val bb = BigInteger.valueOf(b)
+            assertEquals(a - b, aa.minus(bb).toLong())
+            assertEquals(aa - bb, bb.minus(aa).unaryMinus())
+
+            assertEquals(aa, aa - BigInteger.ZERO)
+
+            assertEquals(BigInteger.ZERO, aa - aa)
+        }
+    }
+
+    @Test
+    fun testTimes() {
+        val random = Random.Default
+        for (i in 1..10000) {
+            val a = random.nextInt().toLong()
+            val b = random.nextInt().toLong()
+            val aa = BigInteger.valueOf(a)
+            val bb = BigInteger.valueOf(b)
+            assertEquals(a * b, aa.times(bb).toLong())
+            assertEquals(a * b, bb.times(aa).toLong())
+
+            assertEquals(aa, aa * BigInteger.ONE)
+            assertEquals(aa, BigInteger.ONE * aa)
+
+            assertEquals(BigInteger.ZERO, aa * BigInteger.ZERO)
+            assertEquals(BigInteger.ZERO, BigInteger.ZERO * aa)
+        }
+    }
+
+    @Test
+    fun testDiv() {
+
     }
 
     @Test
