@@ -2423,6 +2423,8 @@ class BigInteger: Number, Comparable<BigInteger> {
      * differs from `remainder` in that it always returns a
      * *non-negative* BigInteger.
      *
+     * Rename from `remainder` to `rem` to accord with `Int.rem` in Kotlin
+     *
      * @param  m the modulus.
      * @return `this mod m`
      * @throws ArithmeticException `m`  0
