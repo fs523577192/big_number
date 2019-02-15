@@ -268,7 +268,7 @@ internal constructor(
      * Used to store the canonical string representation, if computed.
      */
     // @kotlin.jvm.Transient
-    private val stringCache: String? = null
+    private var stringCache: String? = null
 
     /**
      * Translates a `BigInteger` into a `BigDecimal`.
@@ -2159,6 +2159,99 @@ internal constructor(
             // doRound, here, only affects 1000000000 case.
             return doRound(quotient, mc)
         }
+
+        // Private class to build a string representation for BigDecimal object.
+        // "StringBuilderHelper" is constructed as a thread local variable so it is
+        // thread safe. The StringBuilder field acts as a buffer to hold the temporary
+        // representation of BigDecimal. The cmpCharArray holds all the characters for
+        // the compact representation of BigDecimal (except for '-' sign' if it is
+        // negative) if its intCompact field is not INFLATED. It is shared by all
+        // calls to toString() and its variants in that particular thread.
+        internal class StringBuilderHelper {
+            internal var sb = StringBuilder()    // Placeholder for BigDecimal string
+            internal val cmpCharArray = CharArray(19) // character array to place the intCompact
+
+            // Accessors.
+            internal fun getStringBuilder(): StringBuilder {
+                sb = StringBuilder()
+                return sb
+            }
+
+            /**
+             * Places characters representing the intCompact in `long` into
+             * cmpCharArray and returns the offset to the array where the
+             * representation starts.
+             *
+             * @param intCompact the number to put into the cmpCharArray.
+             * @return offset to the array where the representation starts.
+             * Note: intCompact must be greater or equal to zero.
+             */
+            internal fun putIntCompact(intCompact: Long): Int {
+                var intCompact = intCompact
+                if (intCompact < 0) {
+                    throw AssertionError()
+                }
+                var q: Long
+                var r: Int
+                // since we start from the least significant digit, charPos points to
+                // the last character in cmpCharArray.
+                var charPos = cmpCharArray.size
+
+                // Get 2 digits/iteration using longs until quotient fits into an int
+                while (intCompact > Int.MAX_VALUE) {
+                    q = intCompact / 100
+                    r = (intCompact - q * 100).toInt()
+                    intCompact = q
+                    cmpCharArray[--charPos] = DIGIT_ONES[r]
+                    cmpCharArray[--charPos] = DIGIT_TENS[r]
+                }
+
+                // Get 2 digits/iteration using ints when i2 >= 100
+                var q2: Int
+                var i2 = intCompact.toInt()
+                while (i2 >= 100) {
+                    q2 = i2 / 100
+                    r = i2 - q2 * 100
+                    i2 = q2
+                    cmpCharArray[--charPos] = DIGIT_ONES[r]
+                    cmpCharArray[--charPos] = DIGIT_TENS[r]
+                }
+
+                cmpCharArray[--charPos] = DIGIT_ONES[i2]
+                if (i2 >= 10) {
+                    cmpCharArray[--charPos] = DIGIT_TENS[i2]
+                }
+                return charPos
+            } // fun putIntCompact(intCompact: Long)
+
+            companion object {
+                internal val DIGIT_TENS = charArrayOf(
+                    '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                    '1', '1', '1', '1', '1', '1', '1', '1', '1', '1',
+                    '2', '2', '2', '2', '2', '2', '2', '2', '2', '2',
+                    '3', '3', '3', '3', '3', '3', '3', '3', '3', '3',
+                    '4', '4', '4', '4', '4', '4', '4', '4', '4', '4',
+                    '5', '5', '5', '5', '5', '5', '5', '5', '5', '5',
+                    '6', '6', '6', '6', '6', '6', '6', '6', '6', '6',
+                    '7', '7', '7', '7', '7', '7', '7', '7', '7', '7',
+                    '8', '8', '8', '8', '8', '8', '8', '8', '8', '8',
+                    '9', '9', '9', '9', '9', '9', '9', '9', '9', '9'
+                )
+
+                internal val DIGIT_ONES = charArrayOf(
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
+                )
+            }
+        }
     } // companion object
 
     override fun toByte(): Byte {
@@ -3068,6 +3161,239 @@ internal constructor(
     } // private fun compareMagnitude(other: BigDecimal): Int
 
     /**
+     * Returns the string representation of this `BigDecimal`,
+     * using scientific notation if an exponent is needed.
+     *
+     *
+     * A standard canonical string form of the `BigDecimal`
+     * is created as though by the following steps: first, the
+     * absolute value of the unscaled value of the `BigDecimal`
+     * is converted to a string in base ten using the characters
+     * `'0'` through `'9'` with no leading zeros (except
+     * if its value is zero, in which case a single `'0'`
+     * character is used).
+     *
+     *
+     * Next, an *adjusted exponent* is calculated; this is the
+     * negated scale, plus the number of characters in the converted
+     * unscaled value, less one.  That is,
+     * `-scale+(ulength-1)`, where `ulength` is the
+     * length of the absolute value of the unscaled value in decimal
+     * digits (its *precision*).
+     *
+     *
+     * If the scale is greater than or equal to zero and the
+     * adjusted exponent is greater than or equal to `-6`, the
+     * number will be converted to a character form without using
+     * exponential notation.  In this case, if the scale is zero then
+     * no decimal point is added and if the scale is positive a
+     * decimal point will be inserted with the scale specifying the
+     * number of characters to the right of the decimal point.
+     * `'0'` characters are added to the left of the converted
+     * unscaled value as necessary.  If no character precedes the
+     * decimal point after this insertion then a conventional
+     * `'0'` character is prefixed.
+     *
+     *
+     * Otherwise (that is, if the scale is negative, or the
+     * adjusted exponent is less than `-6`), the number will be
+     * converted to a character form using exponential notation.  In
+     * this case, if the converted `BigInteger` has more than
+     * one digit a decimal point is inserted after the first digit.
+     * An exponent in character form is then suffixed to the converted
+     * unscaled value (perhaps with inserted decimal point); this
+     * comprises the letter `'E'` followed immediately by the
+     * adjusted exponent converted to a character form.  The latter is
+     * in base ten, using the characters `'0'` through
+     * `'9'` with no leading zeros, and is always prefixed by a
+     * sign character `'-'` (`'&#92;u002D'`) if the
+     * adjusted exponent is negative, `'+'`
+     * (`'&#92;u002B'`) otherwise).
+     *
+     *
+     * Finally, the entire string is prefixed by a minus sign
+     * character `'-'` (`'&#92;u002D'`) if the unscaled
+     * value is less than zero.  No sign character is prefixed if the
+     * unscaled value is zero or positive.
+     *
+     *
+     * **Examples:**
+     *
+     * For each representation [*unscaled value*, *scale*]
+     * on the left, the resulting string is shown on the right.
+     * <pre>
+     * [123,0]      "123"
+     * [-123,0]     "-123"
+     * [123,-1]     "1.23E+3"
+     * [123,-3]     "1.23E+5"
+     * [123,1]      "12.3"
+     * [123,5]      "0.00123"
+     * [123,10]     "1.23E-8"
+     * [-123,12]    "-1.23E-10"
+    </pre> *
+     *
+     * **Notes:**
+     *
+     *
+     *  1. There is a one-to-one mapping between the distinguishable
+     * `BigDecimal` values and the result of this conversion.
+     * That is, every distinguishable `BigDecimal` value
+     * (unscaled value and scale) has a unique string representation
+     * as a result of using `toString`.  If that string
+     * representation is converted back to a `BigDecimal` using
+     * the [.BigDecimal] constructor, then the original
+     * value will be recovered.
+     *
+     *  1. The string produced for a given number is always the same;
+     * it is not affected by locale.  This means that it can be used
+     * as a canonical string representation for exchanging decimal
+     * data, or as a key for a Hashtable, etc.  Locale-sensitive
+     * number formatting and parsing is handled by the [ ] class and its subclasses.
+     *
+     *  1. The [.toEngineeringString] method may be used for
+     * presenting numbers with exponents in engineering notation, and the
+     * [setScale][.setScale] method may be used for
+     * rounding a `BigDecimal` so it has a known number of digits after
+     * the decimal point.
+     *
+     *  1. The digit-to-character mapping provided by
+     * `Character.forDigit` is used.
+     *
+     *
+     *
+     * @return string representation of this `BigDecimal`.
+     * @see Character.forDigit
+     *
+     * @see .BigDecimal
+     */
+    override fun toString(): String {
+        var sc = stringCache
+        if (sc != null) {
+            return sc
+        }
+
+        sc = layoutChars(true)
+        stringCache = sc
+        return sc
+    }
+
+    /**
+     * Lay out this `BigDecimal` into a {@code char[]} array.
+     * The Java 1.2 equivalent to this was called `getValueString`.
+     *
+     * @param  sci `true` for Scientific exponential notation;
+     *          `false` for Engineering
+     * @return string with canonical string representation of this
+     *         `BigDecimal`
+     */
+    private fun layoutChars(sci: Boolean): String {
+        if (this.scale == 0) {                    // zero scale is trivial
+            return if (intCompact != INFLATED) intCompact.toString() else this.intVal.toString()
+        }
+        if (scale == 2  &&
+            intCompact >= 0 && intCompact < Int.MAX_VALUE) {
+            // currency fast path
+            val lowInt = this.intCompact.toInt() % 100
+            val highInt = this.intCompact.toInt() / 100
+            return (highInt.toString() + '.' +
+                    StringBuilderHelper.DIGIT_TENS[lowInt] +
+                    StringBuilderHelper.DIGIT_ONES[lowInt])
+        }
+
+        val sbHelper: StringBuilderHelper = getStringBuilderHelper()
+        val coeff: CharArray
+        val offset: Int  // offset is the starting index for coeff array
+        // Get the significand as an absolute value
+        if (intCompact != INFLATED) {
+            offset = sbHelper.putIntCompact(intCompact.absoluteValue)
+            coeff  = sbHelper.cmpCharArray
+        } else {
+            offset = 0
+            val str = this.intVal!!.abs().toString()
+            coeff = CharArray(str.length)
+            for (i in 0 until str.length) {
+                coeff[i] = str[i]
+            }
+        }
+
+        // Construct a buffer, with sufficient capacity for all cases.
+        // If E-notation is needed, length will be: +1 if negative, +1
+        // if '.' needed, +2 for "E+", + up to 10 for adjusted exponent.
+        // Otherwise it could have +1 if negative, plus leading "0.00000"
+        val buf = sbHelper.getStringBuilder()
+        if (signum() < 0) {           // prefix '-' if negative
+            buf.append('-')
+        }
+        val coeffLen = coeff.size - offset
+        var adjusted = -scale.toLong() + (coeffLen -1)
+        if ((scale >= 0) && (adjusted >= -6)) { // plain number
+            var pad = scale - coeffLen          // count of padding zeros
+            if (pad >= 0) {                     // 0.xxx form
+                buf.append('0')
+                buf.append('.')
+                while (pad > 0) {
+                    buf.append('0')
+                    pad -= 1
+                }
+                buf.append(coeff, offset, coeffLen)
+            } else {                         // xx.xx form
+                buf.append(coeff, offset, -pad)
+                buf.append('.')
+                buf.append(coeff, -pad + offset, scale)
+            }
+        } else { // E-notation is needed
+            if (sci) {                       // Scientific notation
+                buf.append(coeff[offset]);   // first character
+                if (coeffLen > 1) {          // more to come
+                    buf.append('.');
+                    buf.append(coeff, offset + 1, coeffLen - 1);
+                }
+            } else {                         // Engineering notation
+                var sig = (adjusted % 3).toInt()
+                if (sig < 0) {
+                    sig += 3                 // [adjusted was negative]
+                }
+                adjusted -= sig              // now a multiple of 3
+                sig += 1
+                if (signum() == 0) {
+                    when (sig) {
+                        1 ->
+                            buf.append('0') // exponent is a multiple of three
+                        2 -> {
+                            buf.append("0.00")
+                            adjusted += 3
+                        }
+                        3 -> {
+                            buf.append("0.0")
+                            adjusted += 3
+                        }
+                        else ->
+                            throw AssertionError("Unexpected sig value $sig")
+                    }
+                } else if (sig >= coeffLen) {   // significand all in integer
+                    buf.append(coeff, offset, coeffLen)
+                    // may need some zeros, too
+                    for (i in sig - coeffLen downTo 1) {
+                        buf.append('0')
+                    }
+                } else {                     // xx.xxE form
+                    buf.append(coeff, offset, sig)
+                    buf.append('.')
+                    buf.append(coeff, offset + sig, coeffLen - sig)
+                }
+            }
+            if (adjusted != 0L) {            // [!sci could have made 0]
+                buf.append('E')
+                if (adjusted > 0) {          // force sign for positive
+                    buf.append('+')
+                }
+                buf.append(adjusted)
+            }
+        }
+        return buf.toString()
+    }
+
+    /**
      * Compares this `BigDecimal` with the specified
      * `Object` for equality.  Unlike [ ][.compareTo], this method considers two
      * `BigDecimal` objects equal only if they are equal in
@@ -3289,3 +3615,4 @@ internal constructor(
 }
 
 internal expect fun expandBigIntegerTenPowers(n: Int): BigInteger
+internal expect fun getStringBuilderHelper(): BigDecimal.Companion.StringBuilderHelper

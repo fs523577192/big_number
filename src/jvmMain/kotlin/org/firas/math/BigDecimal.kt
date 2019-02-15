@@ -9,3 +9,10 @@ internal actual fun expandBigIntegerTenPowers(n: Int): BigInteger {
         return BigDecimal._expandBigIntegerTenPowers(n)
     }
 }
+
+private val threadLocalStringBuilderHelper = ThreadLocal.withInitial {
+    BigDecimal.Companion.StringBuilderHelper()
+}
+internal actual fun getStringBuilderHelper(): BigDecimal.Companion.StringBuilderHelper {
+    return threadLocalStringBuilderHelper.get()
+}
