@@ -347,7 +347,7 @@ internal constructor(
          * `BigDecimal` values.
          *
          * @param longVal value of the `BigDecimal`.
-         * @return a `BigDecimal` whose value is `val`.
+         * @return a `BigDecimal` whose value is `longVal`.
          */
         fun valueOf(longVal: Long): BigDecimal {
             if (longVal >= 0 && longVal < zeroThroughTen.size)
@@ -355,6 +355,408 @@ internal constructor(
             else if (longVal != INFLATED)
                 return BigDecimal(null, longVal, 0, 0)
             return BigDecimal(INFLATED_BIGINT, longVal, 0, 0)
+        }
+
+        /**
+         * Translates the string representation of a `BigDecimal`
+         * into a `BigDecimal`.  The string representation consists
+         * of an optional sign, `'+'` (` '&#92;u002B'`) or
+         * `'-'` (`'&#92;u002D'`), followed by a sequence of
+         * zero or more decimal digits ("the integer"), optionally
+         * followed by a fraction, optionally followed by an exponent.
+         *
+         *
+         * The fraction consists of a decimal point followed by zero
+         * or more decimal digits.  The string must contain at least one
+         * digit in either the integer or the fraction.  The number formed
+         * by the sign, the integer and the fraction is referred to as the
+         * *significand*.
+         *
+         *
+         * The exponent consists of the character `'e'`
+         * (`'&#92;u0065'`) or `'E'` (`'&#92;u0045'`)
+         * followed by one or more decimal digits.  The value of the
+         * exponent must lie between -[Integer.MAX_VALUE] ([ ][Integer.MIN_VALUE]+1) and [Integer.MAX_VALUE], inclusive.
+         *
+         *
+         * More formally, the strings this constructor accepts are
+         * described by the following grammar:
+         * <blockquote>
+         * <dl>
+         * <dt>*BigDecimalString:*
+        </dt> * <dd>*Sign<sub>opt</sub> Significand Exponent<sub>opt</sub>*
+        </dd> * <dt>*Sign:*
+        </dt> * <dd>`+`
+        </dd> * <dd>`-`
+        </dd> * <dt>*Significand:*
+        </dt> * <dd>*IntegerPart* `.` *FractionPart<sub>opt</sub>*
+        </dd> * <dd>`.` *FractionPart*
+        </dd> * <dd>*IntegerPart*
+        </dd> * <dt>*IntegerPart:*
+        </dt> * <dd>*Digits*
+        </dd> * <dt>*FractionPart:*
+        </dt> * <dd>*Digits*
+        </dd> * <dt>*Exponent:*
+        </dt> * <dd>*ExponentIndicator SignedInteger*
+        </dd> * <dt>*ExponentIndicator:*
+        </dt> * <dd>`e`
+        </dd> * <dd>`E`
+        </dd> * <dt>*SignedInteger:*
+        </dt> * <dd>*Sign<sub>opt</sub> Digits*
+        </dd> * <dt>*Digits:*
+        </dt> * <dd>*Digit*
+        </dd> * <dd>*Digits Digit*
+        </dd> * <dt>*Digit:*
+        </dt> * <dd>any character for which [Character.isDigit]
+         * returns `true`, including 0, 1, 2 ...
+        </dd></dl> *
+        </blockquote> *
+         *
+         *
+         * The scale of the returned `BigDecimal` will be the
+         * number of digits in the fraction, or zero if the string
+         * contains no decimal point, subject to adjustment for any
+         * exponent; if the string contains an exponent, the exponent is
+         * subtracted from the scale.  The value of the resulting scale
+         * must lie between `Integer.MIN_VALUE` and
+         * `Integer.MAX_VALUE`, inclusive.
+         *
+         *
+         * The character-to-digit mapping is provided by [ ][java.lang.Character.digit] set to convert to radix 10.  The
+         * String may not contain any extraneous characters (whitespace,
+         * for example).
+         *
+         *
+         * **Examples:**<br></br>
+         * The value of the returned `BigDecimal` is equal to
+         * *significand*  10<sup>&nbsp;*exponent*</sup>.
+         * For each string on the left, the resulting representation
+         * [`BigInteger`, `scale`] is shown on the right.
+         * <pre>
+         * "0"            [0,0]
+         * "0.00"         [0,2]
+         * "123"          [123,0]
+         * "-123"         [-123,0]
+         * "1.23E3"       [123,-1]
+         * "1.23E+3"      [123,-1]
+         * "12.3E+7"      [123,-6]
+         * "12.0"         [120,1]
+         * "12.3"         [123,1]
+         * "0.00123"      [123,5]
+         * "-1.23E-12"    [-123,14]
+         * "1234.5E-4"    [12345,5]
+         * "0E+7"         [0,-7]
+         * "-0"           [0,0]
+        </pre> *
+         *
+         * @apiNote For values other than `float` and
+         * `double` NaN and Infinity, this constructor is
+         * compatible with the values returned by [Float.toString]
+         * and [Double.toString].  This is generally the preferred
+         * way to convert a `float` or `double` into a
+         * BigDecimal, as it doesn't suffer from the unpredictability of
+         * the [.BigDecimal] constructor.
+         *
+         * @param str String representation of `BigDecimal`.
+         *
+         * @throws NumberFormatException if `str` is not a valid
+         * representation of a `BigDecimal`.
+         */
+        fun valueOf(str: String): BigDecimal {
+            return valueOf(Character.stringToCharArray(str), 0, str.length)
+        }
+
+        /**
+         * Translates the string representation of a `BigDecimal`
+         * into a `BigDecimal`, accepting the same strings as the
+         * [.BigDecimal] constructor, with rounding
+         * according to the context settings.
+         *
+         * @param  str string representation of a `BigDecimal`.
+         * @param  mc the context to use.
+         * @throws ArithmeticException if the result is inexact but the
+         * rounding mode is `UNNECESSARY`.
+         * @throws NumberFormatException if `str` is not a valid
+         * representation of a BigDecimal.
+         * @since  1.5
+         */
+        fun valueOf(str: String, mc: MathContext): BigDecimal {
+            return valueOf(Character.stringToCharArray(str), 0, str.length, mc)
+        }
+
+        /**
+         * Translates a character array representation of a
+         * `BigDecimal` into a `BigDecimal`, accepting the
+         * same sequence of characters as the [.BigDecimal]
+         * constructor, while allowing a sub-array to be specified.
+         *
+         * @implNote If the sequence of characters is already available
+         * within a character array, using this constructor is faster than
+         * converting the `char` array to string and using the
+         * `BigDecimal(String)` constructor.
+         *
+         * @param  `in` `Char` array that is the source of characters.
+         * @param  offset first character in the array to inspect.
+         * @param  len number of characters to consider.
+         * @throws NumberFormatException if `in` is not a valid
+         * representation of a `BigDecimal` or the defined subarray
+         * is not wholly within `in`.
+         * @since  Java 1.5
+         */
+        fun valueOf(chars: CharArray, offset: Int, len: Int): BigDecimal {
+            return valueOf(chars, offset, len, MathContext.UNLIMITED)
+        }
+
+        /**
+         * Translates a character array representation of a
+         * `BigDecimal` into a `BigDecimal`, accepting the
+         * same sequence of characters as the [.BigDecimal]
+         * constructor, while allowing a sub-array to be specified and
+         * with rounding according to the context settings.
+         *
+         * @implNote If the sequence of characters is already available
+         * within a character array, using this constructor is faster than
+         * converting the `char` array to string and using the
+         * `BigDecimal(String)` constructor.
+         *
+         * @param  `in` `char` array that is the source of characters.
+         * @param  offset first character in the array to inspect.
+         * @param  len number of characters to consider.
+         * @param  mc the context to use.
+         * @throws ArithmeticException if the result is inexact but the
+         * rounding mode is `UNNECESSARY`.
+         * @throws NumberFormatException if `in` is not a valid
+         * representation of a `BigDecimal` or the defined subarray
+         * is not wholly within `in`.
+         * @since  Java 1.5
+         */
+        fun valueOf(chars: CharArray, offset: Int, len: Int, mc: MathContext): BigDecimal {
+            var offset = offset
+            var len = len
+            // protect against huge length.
+            if (offset + len > chars.size || offset < 0) {
+                throw NumberFormatException("Bad offset or len arguments for char[] input.")
+            }
+            // This is the primary string to BigDecimal constructor; all
+            // incoming strings end up here; it uses explicit (inline)
+            // parsing for speed and generates at most one intermediate
+            // (temporary) object (a char[] array) for non-compact case.
+
+            // Use locals for all fields values until completion
+            var prec = 0                 // record precision value
+            var scl = 0                  // record scale value
+            var rs: Long = 0             // the compact value in long
+            var rb: BigInteger? = null   // the inflated value in BigInteger
+            // use array bounds checking to handle too-long, len == 0,
+            // bad offset, etc.
+            try {
+                // handle the sign
+                var isneg = false          // assume positive
+                if (chars[offset] == '-') {
+                    isneg = true               // leading minus means negative
+                    offset += 1
+                    len -= 1
+                } else if (chars[offset] == '+') { // leading + allowed
+                    offset += 1
+                    len -= 1
+                }
+
+                // should now be at numeric part of the significand
+                var dot = false             // true when there is a '.'
+                var exp: Long = 0                    // exponent
+                var c: Char                          // current character
+                val isCompact = len <= MAX_COMPACT_DIGITS
+                // integer significand array & idx is the index to it. The array
+                // is ONLY used when we can't use a compact representation.
+                var idx = 0
+                if (isCompact) {
+                    // First compact case, we need not to preserve the character
+                    // and we can just compute the value in place.
+                    while (len > 0) {
+                        c = chars[offset]
+                        if (c == '0') { // have zero
+                            if (prec == 0)
+                                prec = 1
+                            else if (rs != 0L) {
+                                rs *= 10
+                                prec += 1
+                            } // else digit is a redundant leading zero
+                            if (dot) {
+                                scl += 1
+                            }
+                        } else if (c in '1'..'9') { // have digit
+                            val digit = c - '0'
+                            if (prec != 1 || rs != 0L)
+                                prec += 1 // prec unchanged if preceded by 0s
+                            rs = rs * 10 + digit
+                            if (dot) {
+                                scl += 1
+                            }
+                        } else if (c == '.') {   // have dot
+                            // have dot
+                            if (dot) {
+                                // two dots
+                                throw NumberFormatException("Character array" + " contains more than one decimal point.")
+                            }
+                            dot = true
+                        } else if (Character.isDigit(c)) { // slow path
+                            val digit = Character.digit(c, 10)
+                            if (digit == 0) {
+                                if (prec == 0)
+                                    prec = 1
+                                else if (rs != 0L) {
+                                    rs *= 10
+                                    prec += 1
+                                } // else digit is a redundant leading zero
+                            } else {
+                                if (prec != 1 || rs != 0L) {
+                                    prec += 1 // prec unchanged if preceded by 0s
+                                }
+                                rs = rs * 10 + digit
+                            }
+                            if (dot) {
+                                scl += 1
+                            }
+                        } else if (c == 'e' || c == 'E') {
+                            exp = parseExp(chars, offset, len)
+                            // Next test is required for backwards compatibility
+                            if (exp.toInt().toLong() != exp) {
+                                // overflow
+                                throw NumberFormatException("Exponent overflow.")
+                            }
+                            break // [saves a test]
+                        } else {
+                            throw NumberFormatException(
+                                "Character " + c
+                                        + " is neither a decimal digit number, decimal point, nor"
+                                        + " \"e\" notation exponential mark."
+                            )
+                        }
+                        offset += 1
+                        len -= 1
+                    }
+                    if (prec == 0) {
+                        // no digits found
+                        throw NumberFormatException("No digits found.")
+                    }
+                    // Adjust scale if exp is not zero.
+                    if (exp != 0L) { // had significant exponent
+                        scl = adjustScale(scl, exp)
+                    }
+                    rs = if (isneg) -rs else rs
+                    val mcp = mc.precision
+                    var drop = prec - mcp // prec has range [1, MAX_INT], mcp has range [0, MAX_INT];
+                    // therefore, this subtract cannot overflow
+                    if (mcp > 0 && drop > 0) {  // do rounding
+                        while (drop > 0) {
+                            scl = checkScaleNonZero(scl.toLong() - drop)
+                            rs = divideAndRound(rs, LONG_TEN_POWERS_TABLE[drop], mc.roundingMode)
+                            prec = longDigitLength(rs)
+                            drop = prec - mcp
+                        }
+                    }
+                } else {
+                    val coeff = CharArray(len)
+                    while (len > 0) {
+                        c = chars[offset]
+                        // have digit
+                        if ((c in '0'..'9') || Character.isDigit(c)) {
+                            // First compact case, we need not to preserve the character
+                            // and we can just compute the value in place.
+                            if (c == '0' || Character.digit(c, 10) == 0) {
+                                if (prec == 0) {
+                                    coeff[idx] = c
+                                    prec = 1
+                                } else if (idx != 0) {
+                                    coeff[idx] = c
+                                    idx += 1
+                                    prec += 1
+                                } // else c must be a redundant leading zero
+                            } else {
+                                if (prec != 1 || idx != 0) {
+                                    prec += 1 // prec unchanged if preceded by 0s
+                                }
+                                coeff[idx] = c
+                                idx += 1
+                            }
+                            if (dot) {
+                                scl += 1
+                            }
+                            offset += 1
+                            len -= 1
+                            continue
+                        }
+                        // have dot
+                        if (c == '.') {
+                            // have dot
+                            if (dot) {
+                                // two dots
+                                throw NumberFormatException(("Character array" + " contains more than one decimal point."))
+                            }
+                            dot = true
+                            offset += 1
+                            len -= 1
+                            continue
+                        }
+                        // exponent expected
+                        if ((c != 'e') && (c != 'E')) {
+                            throw NumberFormatException(("Character array" + " is missing \"e\" notation exponential mark."))
+                        }
+                        exp = parseExp(chars, offset, len)
+                        // Next test is required for backwards compatibility
+                        if (exp.toInt().toLong() != exp) {
+                            // overflow
+                            throw NumberFormatException("Exponent overflow.")
+                        }
+                        break // [saves a test]
+                    }
+                    // here when no characters left
+                    if (prec == 0) {
+                        // no digits found
+                        throw NumberFormatException("No digits found.")
+                    }
+                    // Adjust scale if exp is not zero.
+                    if (exp != 0L) { // had significant exponent
+                        scl = adjustScale(scl, exp)
+                    }
+                    // Remove leading zeros from precision (digits count)
+                    rb = BigInteger(coeff, if (isneg) -1 else 1, prec)
+                    rs = compactValFor(rb)
+                    val mcp = mc.precision
+                    if (mcp > 0 && (prec > mcp)) {
+                        if (rs == INFLATED) {
+                            var drop = prec - mcp
+                            while (drop > 0) {
+                                scl = checkScaleNonZero(scl.toLong() - drop)
+                                rb = divideAndRoundByTenPow(rb!!, drop, mc.roundingMode)
+                                rs = compactValFor(rb)
+                                if (rs != INFLATED) {
+                                    prec = longDigitLength(rs)
+                                    break
+                                }
+                                prec = bigDigitLength(rb)
+                                drop = prec - mcp
+                            }
+                        }
+                        if (rs != INFLATED) {
+                            var drop = prec - mcp
+                            while (drop > 0) {
+                                scl = checkScaleNonZero(scl.toLong() - drop)
+                                rs = divideAndRound(rs, LONG_TEN_POWERS_TABLE[drop], mc.roundingMode)
+                                prec = longDigitLength(rs)
+                                drop = prec - mcp
+                            }
+                            rb = null
+                        }
+                    }
+                }
+            } catch (e: IndexOutOfBoundsException) {
+                throw NumberFormatException()
+            } catch (e: IllegalArgumentException) {
+                throw NumberFormatException()
+            }
+
+            return BigDecimal(rb, rs, scl, prec)
         }
 
         internal fun valueOf(unscaledVal: Long, scale: Int, prec: Int): BigDecimal {
@@ -530,6 +932,7 @@ internal constructor(
          * @since  1.5
          */
         val TEN = zeroThroughTen[10]
+
 
         /**
          * Powers of 10 which can be represented exactly in `double`.
@@ -3089,7 +3492,7 @@ internal constructor(
      * @param  other `BigDecimal` to which this `BigDecimal` is
      * to be compared.
      * @return -1, 0, or 1 as this `BigDecimal` is numerically
-     * less than, equal to, or greater than `val`.
+     * less than, equal to, or greater than `other`.
      */
     override operator fun compareTo(other: BigDecimal): Int {
         // Quick path for equal scale and non-inflated case.

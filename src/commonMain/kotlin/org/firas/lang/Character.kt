@@ -61,6 +61,80 @@ class Character {
         val MAX_RADIX = 36
 
         /**
+         * Determines if the specified character is a digit.
+         * <p>
+         * A character is a digit if its general category type, provided
+         * by {@code Character.getType(ch)}, is
+         * `DECIMAL_DIGIT_NUMBER`.
+         * <p>
+         * Some Unicode character ranges that contain digits:
+         * <ul>
+         * <li>{@code '\u005Cu0030'} through {@code '\u005Cu0039'},
+         *     ISO-LATIN-1 digits ({@code '0'} through {@code '9'})
+         * <li>{@code '\u005Cu0660'} through {@code '\u005Cu0669'},
+         *     Arabic-Indic digits
+         * <li>{@code '\u005Cu06F0'} through {@code '\u005Cu06F9'},
+         *     Extended Arabic-Indic digits
+         * <li>{@code '\u005Cu0966'} through {@code '\u005Cu096F'},
+         *     Devanagari digits
+         * <li>{@code '\u005CuFF10'} through {@code '\u005CuFF19'},
+         *     Fullwidth digits
+         * </ul>
+         *
+         * Many other character ranges contain digits as well.
+         *
+         * <p><b>Note:</b> This method cannot handle <a
+         * href="#supplementary"> supplementary characters</a>. To support
+         * all Unicode characters, including supplementary characters, use
+         * the {@link #isDigit(int)} method.
+         *
+         * @param   ch   the character to be tested.
+         * @return  `true` if the character is a digit;
+         *          `false` otherwise.
+         * @see     Character#digit(char, int)
+         * @see     Character#forDigit(int, int)
+         * @see     Character#getType(char)
+         */
+        fun isDigit(ch: Char): Boolean {
+            return isDigit(ch.toInt())
+        }
+
+        /**
+         * Determines if the specified character (Unicode code point) is a digit.
+         * <p>
+         * A character is a digit if its general category type, provided
+         * by {@link Character#getType(int) getType(codePoint)}, is
+         * `DECIMAL_DIGIT_NUMBER`.
+         * <p>
+         * Some Unicode character ranges that contain digits:
+         * <ul>
+         * <li>{@code '\u005Cu0030'} through {@code '\u005Cu0039'},
+         *     ISO-LATIN-1 digits ({@code '0'} through {@code '9'})
+         * <li>{@code '\u005Cu0660'} through {@code '\u005Cu0669'},
+         *     Arabic-Indic digits
+         * <li>{@code '\u005Cu06F0'} through {@code '\u005Cu06F9'},
+         *     Extended Arabic-Indic digits
+         * <li>{@code '\u005Cu0966'} through {@code '\u005Cu096F'},
+         *     Devanagari digits
+         * <li>{@code '\u005CuFF10'} through {@code '\u005CuFF19'},
+         *     Fullwidth digits
+         * </ul>
+         *
+         * Many other character ranges contain digits as well.
+         *
+         * @param   codePoint the character (Unicode code point) to be tested.
+         * @return  `true` if the character is a digit;
+         *          `false` otherwise.
+         * @see     Character#forDigit(int, int)
+         * @see     Character#getType(int)
+         * @since   Java 1.5
+         */
+        fun isDigit(codePoint: Int): Boolean {
+            return codePoint in '0'.toInt()..'9'.toInt()
+            // TODO: other ranges of digits
+        }
+
+        /**
          * Returns the numeric value of the character `ch` in the
          * specified radix.
          *
@@ -134,5 +208,12 @@ class Character {
             }
             return result
         }
-    }
+
+        /**
+         * @author Wu Yuping
+         */
+        fun stringToCharArray(str: String): CharArray {
+            return str.toList().toCharArray()
+        }
+    }  // companion object
 }

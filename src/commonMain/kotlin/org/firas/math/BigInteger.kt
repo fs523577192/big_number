@@ -656,6 +656,125 @@ class BigInteger: Number, Comparable<BigInteger> {
         }
 
         /**
+         * Translates the decimal String representation of a BigInteger into a
+         * BigInteger.  The String representation consists of an optional minus
+         * sign followed by a sequence of one or more decimal digits.  The
+         * character-to-digit mapping is provided by `Character.digit`.
+         * The String may not contain any extraneous characters (whitespace, for
+         * example).
+         *
+         * @param str decimal String representation of BigInteger.
+         * @throws NumberFormatException `str` is not a valid representation
+         * of a BigInteger.
+         * @see Character.digit
+         */
+        fun valueOf(str: String): BigInteger {
+            return valueOf(str, 10)
+        }
+
+        /**
+         * Translates the String representation of a BigInteger in the
+         * specified radix into a BigInteger.  The String representation
+         * consists of an optional minus or plus sign followed by a
+         * sequence of one or more digits in the specified radix.  The
+         * character-to-digit mapping is provided by `Character.digit`.  The String may not contain any extraneous
+         * characters (whitespace, for example).
+         *
+         * @param str String representation of BigInteger.
+         * @param radix radix to be used in interpreting `str`.
+         * @throws NumberFormatException `str` is not a valid representation
+         * of a BigInteger in the specified radix, or `radix` is
+         * outside the range from [Character.MIN_RADIX] to
+         * [Character.MAX_RADIX], inclusive.
+         * @see Character.digit
+         */
+        fun valueOf(str: String, radix: Int): BigInteger {
+            var cursor = 0
+            val numDigits: Int
+            val len = str.length
+
+            if (radix < Character.MIN_RADIX || radix > Character.MAX_RADIX) {
+                throw NumberFormatException("Radix out of range")
+            }
+            if (len == 0) {
+                throw NumberFormatException("Zero length BigInteger")
+            }
+
+            // Check for at most one leading sign
+            var sign = 1
+            val index1 = str.lastIndexOf('-')
+            val index2 = str.lastIndexOf('+')
+            if (index1 >= 0) {
+                if (index1 != 0 || index2 >= 0) {
+                    throw NumberFormatException("Illegal embedded sign character")
+                }
+                sign = -1
+                cursor = 1
+            } else if (index2 >= 0) {
+                if (index2 != 0) {
+                    throw NumberFormatException("Illegal embedded sign character")
+                }
+                cursor = 1
+            }
+            if (cursor == len)
+                throw NumberFormatException("Zero length BigInteger")
+
+            // Skip leading zeros and compute number of digits in magnitude
+            while (cursor < len && Character.digit(str[cursor], radix) == 0) {
+                cursor += 1
+            }
+
+            if (cursor == len) {
+                return ZERO
+            }
+
+            numDigits = len - cursor
+
+            // Pre-allocate array of expected size. May be too large but can
+            // never be too small. Typically exact.
+            val numBits = (numDigits * bitsPerDigit[radix]).ushr(10) + 1
+            if (numBits + 31 >= 1L shl 32) {
+                reportOverflow()
+            }
+            val numWords = (numBits + 31).toInt().ushr(5)
+            val magnitude = IntArray(numWords)
+
+            // Process first (potentially short) digit group
+            var firstGroupLen = numDigits % digitsPerInt[radix]
+            if (firstGroupLen == 0) {
+                firstGroupLen = digitsPerInt[radix]
+            }
+            val temp = cursor + firstGroupLen
+            var group = str.substring(cursor, temp)
+            cursor = temp
+            magnitude[numWords - 1] = group.toInt(radix)
+            if (magnitude[numWords - 1] < 0) {
+                throw NumberFormatException("Illegal digit")
+            }
+
+            // Process remaining digit groups
+            val superRadix = intRadix[radix]
+            var groupVal = 0
+            while (cursor < len) {
+                val temp = cursor + digitsPerInt[radix]
+                group = str.substring(cursor, temp)
+                cursor = temp
+                groupVal = group.toInt(radix)
+                if (groupVal < 0) {
+                    throw NumberFormatException("Illegal digit")
+                }
+                destructiveMulAdd(magnitude, superRadix, groupVal)
+            }
+            // Required for cases where the array was overallocated.
+            val mag = trustedStripLeadingZeroInts(magnitude)
+            val result = BigInteger(sign, mag)
+            if (mag.size >= MAX_MAG_LENGTH) {
+                result.checkRange()
+            }
+            return result
+        }
+
+        /**
          * Constructs a randomly generated BigInteger, uniformly distributed over
          * the range 0 to (2<sup>`numBits`</sup> - 1), inclusive.
          * The uniformity of the distribution assumes that a fair source of random
@@ -2580,7 +2699,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * `abs(this)` and `abs(val)`.  Returns 0 if
      * `this == 0 && val == 0`.
      *
-     * @param  `val` value with which the GCD is to be computed.
+     * @param  other value with which the GCD is to be computed.
      * @return `GCD(abs(this), abs(val))`
      */
     fun gcd(other: BigInteger): BigInteger {

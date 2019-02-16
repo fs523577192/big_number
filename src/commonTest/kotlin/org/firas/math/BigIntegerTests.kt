@@ -19,7 +19,11 @@ class BigIntegerTests {
         val random = Random.Default
         for (i in 1..10000) {
             val l = random.nextLong()
-            assertEquals(l.toString(), BigInteger.valueOf(l).toString())
+            val bi = BigInteger.valueOf(l)
+            val str = l.toString()
+            assertEquals(str, bi.toString())
+
+            assertEquals(bi, BigInteger.valueOf(str))
         }
     }
 
