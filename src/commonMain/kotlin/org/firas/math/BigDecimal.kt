@@ -2342,7 +2342,7 @@ internal constructor(
                         scale = checkScaleNonZero(scale.toLong() - drop)
                         intVal = divideAndRoundByTenPow(intVal!!, drop, mode)
                         wasDivided = true
-                        compactVal = compactValFor(intVal!!)
+                        compactVal = compactValFor(intVal)
                         if (compactVal != INFLATED) {
                             prec = longDigitLength(compactVal)
                             break

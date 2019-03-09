@@ -7,8 +7,6 @@ import kotlin.test.assertEquals
 /**
  *
  * @author Wu Yuping
- * @version 1.0.0
- * @since 1.0.0
  */
 class BigIntegerTests {
 

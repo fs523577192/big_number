@@ -754,12 +754,11 @@ class BigInteger: Number, Comparable<BigInteger> {
 
             // Process remaining digit groups
             val superRadix = intRadix[radix]
-            var groupVal = 0
             while (cursor < len) {
                 val temp = cursor + digitsPerInt[radix]
                 group = str.substring(cursor, temp)
                 cursor = temp
-                groupVal = group.toInt(radix)
+                val groupVal = group.toInt(radix)
                 if (groupVal < 0) {
                     throw NumberFormatException("Illegal digit")
                 }

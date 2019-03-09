@@ -130,14 +130,13 @@ class MathContext(
             try { // any error here is a string format problem
                 if (!str.startsWith("precision=")) throw RuntimeException()
                 val fence = str.indexOf(' ')    // could be -1
-                var off = 10                     // where value starts
                 setPrecision = str.substring(10, fence).toInt()
 
-                if (!str.startsWith("roundingMode=", fence + 1))
+                if (!str.startsWith("roundingMode=", fence + 1)) {
                     throw RuntimeException()
-                off = fence + 1 + 13
-                val str = str.substring(off, str.length)
-                roundingMode = RoundingMode.valueOf(str)
+                }
+                val off = fence + 1 + 13           // where value starts
+                roundingMode = RoundingMode.valueOf(str.substring(off, str.length))
             } catch (re: RuntimeException) {
                 throw IllegalArgumentException("bad string format")
             }

@@ -1,5 +1,4 @@
-import org.firas.lang.insert
-import org.firas.lang.setLength
+package org.firas.lang
 
 import kotlin.random.Random
 
@@ -10,8 +9,6 @@ import kotlin.test.assertTrue
 /**
  *
  * @author Wu Yuping
- * @version 1.0.0
- * @since 1.0.0
  */
 class StringBuilderTests {
 
