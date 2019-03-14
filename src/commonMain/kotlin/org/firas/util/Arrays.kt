@@ -94,6 +94,221 @@ class Arrays private constructor() {
         }
 
         /**
+         * Searches the specified array of longs for the specified value using the
+         * binary search algorithm.  The array must be sorted (as
+         * by the [.sort] method) prior to making this call.  If it
+         * is not sorted, the results are undefined.  If the array contains
+         * multiple elements with the specified value, there is no guarantee which
+         * one will be found.
+         *
+         * @param a the array to be searched
+         * @param key the value to be searched for
+         * @return index of the search key, if it is contained in the array;
+         * otherwise, `(-(*insertion point*) - 1)`.  The
+         * *insertion point* is defined as the point at which the
+         * key would be inserted into the array: the index of the first
+         * element greater than the key, or `a.length` if all
+         * elements in the array are less than the specified key.  Note
+         * that this guarantees that the return value will be &gt;= 0 if
+         * and only if the key is found.
+         */
+        fun binarySearch(a: LongArray, key: Long): Int {
+            return binarySearch0(a, 0, a.size, key)
+        }
+
+        /**
+         * Searches a range of
+         * the specified array of longs for the specified value using the
+         * binary search algorithm.
+         * The range must be sorted (as
+         * by the [.sort] method)
+         * prior to making this call.  If it
+         * is not sorted, the results are undefined.  If the range contains
+         * multiple elements with the specified value, there is no guarantee which
+         * one will be found.
+         *
+         * @param a the array to be searched
+         * @param fromIndex the index of the first element (inclusive) to be
+         * searched
+         * @param toIndex the index of the last element (exclusive) to be searched
+         * @param key the value to be searched for
+         * @return index of the search key, if it is contained in the array
+         * within the specified range;
+         * otherwise, `(-(*insertion point*) - 1)`.  The
+         * *insertion point* is defined as the point at which the
+         * key would be inserted into the array: the index of the first
+         * element in the range greater than the key,
+         * or `toIndex` if all
+         * elements in the range are less than the specified key.  Note
+         * that this guarantees that the return value will be &gt;= 0 if
+         * and only if the key is found.
+         * @throws IllegalArgumentException
+         * if `fromIndex > toIndex`
+         * @throws ArrayIndexOutOfBoundsException
+         * if `fromIndex < 0 or toIndex > a.length`
+         * @since Java 1.6
+         */
+        fun binarySearch(
+            a: LongArray, fromIndex: Int, toIndex: Int,
+            key: Long
+        ): Int {
+            rangeCheck(a.size, fromIndex, toIndex)
+            return binarySearch0(a, fromIndex, toIndex, key)
+        }
+
+        // Like public version, but without range checks.
+        private fun binarySearch0(
+            a: LongArray, fromIndex: Int, toIndex: Int,
+            key: Long
+        ): Int {
+            var low = fromIndex
+            var high = toIndex - 1
+
+            while (low <= high) {
+                val mid = (low + high).ushr(1)
+                val midVal = a[mid]
+
+                if (midVal < key)
+                    low = mid + 1
+                else if (midVal > key)
+                    high = mid - 1
+                else
+                    return mid // key found
+            }
+            return -(low + 1)  // key not found.
+        }
+
+        /**
+         * Returns `true` if the two specified arrays of longs are
+         * *equal* to one another.  Two arrays are considered equal if both
+         * arrays contain the same number of elements, and all corresponding pairs
+         * of elements in the two arrays are equal.  In other words, two arrays
+         * are equal if they contain the same elements in the same order.  Also,
+         * two array references are considered equal if both are `null`.
+         *
+         * @param a one array to be tested for equality
+         * @param a2 the other array to be tested for equality
+         * @return `true` if the two arrays are equal
+         */
+        fun equals(a: LongArray?, a2: LongArray?): Boolean {
+            if (a === a2) {
+                return true
+            }
+            if (a == null || a2 == null) {
+                return false
+            }
+
+            val length = a.size
+            if (a2.size != length) {
+                return false
+            }
+            for (i in 0 until length) {
+                if (a[i] != a2[i]) {
+                    return false
+                }
+            }
+            return true
+        }
+
+        /**
+         * Returns `true` if the two specified arrays of Objects are
+         * *equal* to one another.  The two arrays are considered equal if
+         * both arrays contain the same number of elements, and all corresponding
+         * pairs of elements in the two arrays are equal.  Two objects `e1`
+         * and `e2` are considered *equal* if
+         * `Objects.equals(e1, e2)`.
+         * In other words, the two arrays are equal if
+         * they contain the same elements in the same order.  Also, two array
+         * references are considered equal if both are `null`.
+         *
+         * @param a one array to be tested for equality
+         * @param a2 the other array to be tested for equality
+         * @return `true` if the two arrays are equal
+         */
+        fun equals(a: Array<Any?>?, a2: Array<Any?>?): Boolean {
+            if (a === a2) {
+                return true
+            }
+            if (a == null || a2 == null) {
+                return false
+            }
+
+            val length = a.size
+            if (a2.size != length) {
+                return false
+            }
+            for (i in 0 until length) {
+                if (a[i] != a2[i]) {
+                    return false
+                }
+            }
+            return true
+        }
+
+        /**
+         * Returns a hash code based on the contents of the specified array.
+         * For any two `long` arrays `a` and `b`
+         * such that `Arrays.equals(a, b)`, it is also the case that
+         * `Arrays.hashCode(a) == Arrays.hashCode(b)`.
+         *
+         *
+         * The value returned by this method is the same value that would be
+         * obtained by invoking the [hashCode][List.hashCode]
+         * method on a [List] containing a sequence of [Long]
+         * instances representing the elements of `a` in the same order.
+         * If `a` is `null`, this method returns 0.
+         *
+         * @param a the array whose hash value to compute
+         * @return a content-based hash code for `a`
+         * @since Java 1.5
+         */
+        fun hashCode(a: LongArray?): Int {
+            if (a == null) {
+                return 0
+            }
+            var result = 1
+            for (element in a) {
+                val elementHash = (element xor element.ushr(32)).toInt()
+                result = 31 * result + elementHash
+            }
+            return result
+        }
+
+        /**
+         * Returns a hash code based on the contents of the specified array.  If
+         * the array contains other arrays as elements, the hash code is based on
+         * their identities rather than their contents.  It is therefore
+         * acceptable to invoke this method on an array that contains itself as an
+         * element,  either directly or indirectly through one or more levels of
+         * arrays.
+         *
+         *
+         * For any two arrays `a` and `b` such that
+         * `Arrays.equals(a, b)`, it is also the case that
+         * `Arrays.hashCode(a) == Arrays.hashCode(b)`.
+         *
+         *
+         * The value returned by this method is equal to the value that would
+         * be returned by `Arrays.asList(a).hashCode()`, unless `a`
+         * is `null`, in which case `0` is returned.
+         *
+         * @param a the array whose content-based hash code to compute
+         * @return a content-based hash code for `a`
+         * @see .deepHashCode
+         * @since Java 1.5
+         */
+        fun hashCode(a: Array<Any?>?): Int {
+            if (a == null) {
+                return 0
+            }
+            var result = 1
+            for (element in a) {
+                result = 31 * result + (element?.hashCode() ?: 0)
+            }
+            return result
+        }
+
+        /**
          * Checks that `fromIndex` and `toIndex` are in
          * the range and throws an exception if they aren't.
          */
