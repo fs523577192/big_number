@@ -55,7 +55,7 @@ import org.firas.lang.ArrayIndexOutOfBoundsException
  * @author Josh Bloch
  * @author Neal Gafter
  * @author John Rose
- * @author Wu Yuping
+ * @author Wu Yuping (migrate to Kotlin)
  * @since  Java 1.2
  */
 class Arrays private constructor() {
@@ -683,7 +683,7 @@ class Arrays private constructor() {
          * @param a2 the other array to be tested for equality
          * @return `true` if the two arrays are equal
          */
-        fun equals(a: Array<in Any?>?, a2: Array<in Any?>?): Boolean {
+        fun equals(a: Array<out Any?>?, a2: Array<out Any?>?): Boolean {
             if (a === a2) {
                 return true
             }
@@ -896,7 +896,7 @@ class Arrays private constructor() {
          * @see .deepHashCode
          * @since Java 1.5
          */
-        fun hashCode(a: Array<in Any?>?): Int {
+        fun hashCode(a: Array<out Any?>?): Int {
             if (a == null) {
                 return 0
             }
