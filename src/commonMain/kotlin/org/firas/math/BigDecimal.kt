@@ -2655,6 +2655,21 @@ internal constructor(
                 )
             }
         }
+
+        private object LongOverflow {
+            /** BigInteger equal to Long.MIN_VALUE.  */
+            private val LONGMIN = BigInteger.valueOf(Long.MIN_VALUE)
+
+            /** BigInteger equal to Long.MAX_VALUE.  */
+            private val LONGMAX = BigInteger.valueOf(Long.MAX_VALUE)
+
+            internal fun check(num: BigDecimal) {
+                val intVal = num.inflated()
+                if (intVal < LONGMIN || intVal > LONGMAX) {
+                    throw ArithmeticException("Overflow")
+                }
+            }
+        }
     } // companion object
 
     override fun toByte(): Byte {
@@ -2805,6 +2820,44 @@ internal constructor(
             this.intCompact
         else
             toBigInteger().toLong()
+    }
+
+    /**
+     * Converts this `BigDecimal` to a `long`, checking
+     * for lost information.  If this `BigDecimal` has a
+     * nonzero fractional part or is out of the possible range for a
+     * `long` result then an `ArithmeticException` is
+     * thrown.
+     *
+     * @return this `BigDecimal` converted to a `long`.
+     * @throws ArithmeticException if `this` has a nonzero
+     * fractional part, or will not fit in a `long`.
+     * @since  1.5
+     */
+    fun longValueExact(): Long {
+        if (intCompact != INFLATED && scale == 0) {
+            return intCompact
+        }
+        // If more than 19 digits in integer part it cannot possibly fit
+        if (precision() - scale > 19) {
+            // [OK for negative scale too]
+            throw ArithmeticException("Overflow")
+        }
+        // Fastpath zero and < 1.0 numbers (the latter can be very slow
+        // to round if very small)
+        if (this.signum() == 0) {
+            return 0
+        }
+        if (this.precision() - this.scale <= 0) {
+            throw ArithmeticException("Rounding necessary")
+        }
+        // round to an integer, with Exception if decimal part non-0
+        val num = this.setScale(0, RoundingMode.UNNECESSARY)
+        if (num.precision() >= 19) {
+            // need to check carefully
+            LongOverflow.check(num)
+        }
+        return num.inflated().toLong()
     }
 
     override fun toShort(): Short {
@@ -3409,6 +3462,32 @@ internal constructor(
      */
     fun setScale(newScale: Int): BigDecimal {
         return setScale(newScale, RoundingMode.UNNECESSARY)
+    }
+
+    /**
+     * Returns a `BigDecimal` which is numerically equal to
+     * this one but with any trailing zeros removed from the
+     * representation.  For example, stripping the trailing zeros from
+     * the `BigDecimal` value `600.0`, which has
+     * [`BigInteger`, `scale`] components equals to
+     * [6000, 1], yields `6E2` with [`BigInteger`,
+     * `scale`] components equals to [6, -2].  If
+     * this BigDecimal is numerically equal to zero, then
+     * `BigDecimal.ZERO` is returned.
+     *
+     * @return a numerically equal `BigDecimal` with any
+     * trailing zeros removed.
+     * @since 1.5
+     */
+    fun stripTrailingZeros(): BigDecimal {
+        return if (this.intCompact == 0L ||
+                this.intVal != null && this.intVal.signum() == 0) {
+            BigDecimal.ZERO
+        } else if (this.intCompact != INFLATED) {
+            createAndStripZerosToMatchScale(this.intCompact, this.scale, Long.MIN_VALUE)
+        } else {
+            createAndStripZerosToMatchScale(this.intVal!!, scale, Long.MIN_VALUE)
+        }
     }
 
     // ----==== Decimal Point Motion Operations ====----
