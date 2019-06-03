@@ -26,6 +26,7 @@
  */
 package org.firas.math
 
+import kotlin.js.JsName
 import kotlin.random.Random
 import kotlin.math.absoluteValue
 
@@ -66,6 +67,7 @@ internal class PrimeUtils private constructor() {
          * @return `true` if this BigInteger is probably prime,
          * `false` if it's definitely composite.
          */
+        @JsName("primeToCertainty")
         internal fun primeToCertainty(value: BigInteger, certainty: Int, random: Random): Boolean {
             var rounds: Int
             val n = (minOf(certainty, Int.MAX_VALUE - 1) + 1) / 2

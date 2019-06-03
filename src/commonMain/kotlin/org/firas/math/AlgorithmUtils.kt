@@ -29,6 +29,8 @@
  */
 package org.firas.math
 
+import kotlin.js.JsName
+
 /**
  *
  * @author Wu Yuping
@@ -102,6 +104,7 @@ internal class AlgorithmUtils private constructor() {
          *
          * See:  http://en.wikipedia.org/wiki/Karatsuba_algorithm
          */
+        @JsName("multiplyKaratsuba")
         internal fun multiplyKaratsuba(x: BigInteger, y: BigInteger): BigInteger {
             val xlen = x.mag.size
             val ylen = y.mag.size
@@ -159,6 +162,7 @@ internal class AlgorithmUtils private constructor() {
          * LNCS #4547. Springer, Madrid, Spain, June 21-22, 2007.
          *
          */
+        @JsName("multiplyToomCook3")
         internal fun multiplyToomCook3(a: BigInteger, b: BigInteger): BigInteger {
             val alen = a.mag.size
             val blen = b.mag.size
@@ -290,6 +294,7 @@ internal class AlgorithmUtils private constructor() {
          *
          * @return `this<sup>2</sup>`
          */
+        @JsName("square")
         internal fun square(value: BigInteger): BigInteger {
             if (value.signum == 0) {
                 return BigInteger.ZERO
@@ -312,6 +317,7 @@ internal class AlgorithmUtils private constructor() {
          * Squares the contents of the int array x. The result is placed into the
          * int array z.  The contents of x are not changed.
          */
+        @JsName("squareToLen")
         internal fun squareToLen(x: IntArray, len: Int, z: IntArray?): IntArray {
             var z = z
             /*
@@ -386,6 +392,7 @@ internal class AlgorithmUtils private constructor() {
         /**
          * Multiply an array by one word k and add to result, return the carry
          */
+        @JsName("mulAdd")
         internal fun mulAdd(out: IntArray, inArray: IntArray, offset: Int, len: Int, k: Int): Int {
             var offset = offset
             val kLong = k.toLong() and BigInteger.LONG_MASK
@@ -406,7 +413,7 @@ internal class AlgorithmUtils private constructor() {
          * Add one word to the number a mlen words into a. Return the resulting
          * carry.
          */
-        fun addOne(a: IntArray, offset: Int, mlen: Int, carry: Int): Int {
+        private fun addOne(a: IntArray, offset: Int, mlen: Int, carry: Int): Int {
             var offset = a.size - 1 - mlen - offset
             var mlen = mlen
             val t = (a[offset].toLong() and BigInteger.LONG_MASK) + (carry.toLong() and BigInteger.LONG_MASK)
@@ -430,6 +437,7 @@ internal class AlgorithmUtils private constructor() {
         }
 
         // shifts a up to len right n bits assumes no leading zeros, 0<n<32
+        @JsName("primitiveRightShift")
         internal fun primitiveRightShift(a: IntArray, len: Int, n: Int) {
             val n2 = 32 - n
             var i = len - 1
@@ -444,6 +452,7 @@ internal class AlgorithmUtils private constructor() {
         }
 
         // shifts a up to len left n bits assumes no leading zeros, 0<=n<32
+        @JsName("primitiveLeftShift")
         internal fun primitiveLeftShift(a: IntArray, len: Int, n: Int) {
             if (len == 0 || n == 0) {
                 return
@@ -465,6 +474,7 @@ internal class AlgorithmUtils private constructor() {
          * Montgomery reduce n, modulo mod.  This reduces modulo mod and divides
          * by 2^(32*mlen). Adapted from Colin Plumb's C library.
          */
+        @JsName("montReduce")
         internal fun montReduce(n: IntArray, mod: IntArray, mlen: Int, inv: Int): IntArray {
             var c = 0
             var len = mlen
@@ -684,6 +694,7 @@ internal class AlgorithmUtils private constructor() {
          * @throws ArithmeticException if `divisor` is zero.
          * @see MutableBigInteger.divideKnuth
          */
+        @JsName("divideKnuth")
         internal fun divideKnuth(dividend: BigInteger, divisor: BigInteger): BigInteger {
             val q = MutableBigInteger()
             val a = MutableBigInteger(dividend.mag)
@@ -693,6 +704,7 @@ internal class AlgorithmUtils private constructor() {
             return q.toBigInteger(dividend.signum * divisor.signum)
         }
 
+        @JsName("remainderKnuth")
         internal fun remainderKnuth(dividend: BigInteger, divisor: BigInteger): BigInteger {
             val q = MutableBigInteger()
             val a = MutableBigInteger(dividend.mag)
@@ -701,6 +713,7 @@ internal class AlgorithmUtils private constructor() {
             return a.divideKnuth(b, q)!!.toBigInteger(dividend.signum)
         }
 
+        @JsName("divideAndRemainderKnuth")
         internal fun divideAndRemainderKnuth(dividend: BigInteger, divisor: BigInteger): Array<BigInteger> {
             val q = MutableBigInteger()
             val a = MutableBigInteger(dividend.mag)
@@ -716,6 +729,7 @@ internal class AlgorithmUtils private constructor() {
          * @param  divisor the divisor
          * @return `dividend / divisor`
          */
+        @JsName("divideBurnikelZiegler")
         internal fun divideBurnikelZiegler(dividend: BigInteger, divisor: BigInteger): BigInteger {
             return divideAndRemainderBurnikelZiegler(dividend, divisor)[0]
         }
@@ -726,6 +740,7 @@ internal class AlgorithmUtils private constructor() {
          * @param  divisor the divisor
          * @return `dividend % divisor`
          */
+        @JsName("remainderBurnikelZiegler")
         internal fun remainderBurnikelZiegler(dividend: BigInteger, divisor: BigInteger): BigInteger {
             return divideAndRemainderBurnikelZiegler(dividend, divisor)[1]
         }
@@ -737,6 +752,7 @@ internal class AlgorithmUtils private constructor() {
          * @param  divisor the divisor
          * @return an array containing the quotient and remainder
          */
+        @JsName("divideAndRemainderBurnikelZiegler")
         internal fun divideAndRemainderBurnikelZiegler(
                 dividend: BigInteger, divisor: BigInteger): Array<BigInteger> {
             val q = MutableBigInteger()
@@ -751,6 +767,7 @@ internal class AlgorithmUtils private constructor() {
          * Uses the extended Euclidean algorithm to compute the modInverse of base
          * mod a modulus that is a power of 2. The modulus is 2^k.
          */
+        @JsName("euclidModInverse")
         internal fun euclidModInverse(value: MutableBigInteger, k: Int): MutableBigInteger {
             var b = MutableBigInteger(1)
             b.leftShift(k)
@@ -818,6 +835,7 @@ internal class AlgorithmUtils private constructor() {
         /**
          * Returns a BigInteger whose value is (this ** exponent) mod (2**p)
          */
+        @JsName("modPow2")
         internal fun modPow2(value: BigInteger, exponent: BigInteger, p: Int): BigInteger {
             /*
              * Perform exponentiation using repeated squaring trick, chopping off

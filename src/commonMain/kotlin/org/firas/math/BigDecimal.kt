@@ -31,6 +31,7 @@ package org.firas.math
 
 import org.firas.lang.Character
 import org.firas.util.Integers
+import kotlin.js.JsName
 import kotlin.math.absoluteValue
 
 
@@ -324,6 +325,7 @@ internal constructor(
          * @return a `BigDecimal` whose value is
          * <tt>(unscaledVal  10<sup>-scale</sup>)</tt>.
          */
+        @JsName("fromLongAndScale")
         fun valueOf(unscaledVal: Long, scale: Int): BigDecimal {
             if (scale == 0)
                 return valueOf(unscaledVal)
@@ -349,6 +351,7 @@ internal constructor(
          * @param longVal value of the `BigDecimal`.
          * @return a `BigDecimal` whose value is `longVal`.
          */
+        @JsName("fromLong")
         fun valueOf(longVal: Long): BigDecimal {
             if (longVal >= 0 && longVal < zeroThroughTen.size)
                 return zeroThroughTen[longVal.toInt()]
@@ -462,6 +465,7 @@ internal constructor(
          * @throws NumberFormatException if `str` is not a valid
          * representation of a `BigDecimal`.
          */
+        @JsName("fromString")
         fun valueOf(str: String): BigDecimal {
             return valueOf(Character.stringToCharArray(str), 0, str.length)
         }
@@ -480,6 +484,7 @@ internal constructor(
          * representation of a BigDecimal.
          * @since  1.5
          */
+        @JsName("fromStringAndMathContext")
         fun valueOf(str: String, mc: MathContext): BigDecimal {
             return valueOf(Character.stringToCharArray(str), 0, str.length, mc)
         }
@@ -503,6 +508,7 @@ internal constructor(
          * is not wholly within `in`.
          * @since  Java 1.5
          */
+        @JsName("fromCharArray")
         fun valueOf(chars: CharArray, offset: Int, len: Int): BigDecimal {
             return valueOf(chars, offset, len, MathContext.UNLIMITED)
         }
@@ -530,6 +536,7 @@ internal constructor(
          * is not wholly within `in`.
          * @since  Java 1.5
          */
+        @JsName("fromCharArrayAndMathContext")
         fun valueOf(chars: CharArray, offset: Int, len: Int, mc: MathContext): BigDecimal {
             var offset = offset
             var len = len
@@ -759,6 +766,7 @@ internal constructor(
             return BigDecimal(rb, rs, scl, prec)
         }
 
+        @JsName("fromLongScaleAndPrecision")
         internal fun valueOf(unscaledVal: Long, scale: Int, prec: Int): BigDecimal {
             if (scale == 0 && unscaledVal >= 0 && unscaledVal < zeroThroughTen.size) {
                 return zeroThroughTen[unscaledVal.toInt()]
@@ -771,6 +779,7 @@ internal constructor(
             )
         }
 
+        @JsName("fromBigIntegerScaleAndPrecision")
         internal fun valueOf(intVal: BigInteger, scale: Int, prec: Int): BigDecimal {
             val intCompact = compactValFor(intVal)
             if (intCompact == 0L) {
@@ -781,6 +790,7 @@ internal constructor(
             return BigDecimal(intVal, intCompact, scale, prec)
         }
 
+        @JsName("zeroValueOf")
         internal fun zeroValueOf(scale: Int): BigDecimal {
             return if (scale >= 0 && scale < ZERO_SCALED_BY.size)
                 ZERO_SCALED_BY[scale]
@@ -1046,6 +1056,7 @@ internal constructor(
          * in the meantime, the BIG_TEN_POWERS_TABLE array gets
          * expanded to the size greater than n.
          */
+        @JsName("_expandBigIntegerTenPowers")
         internal fun _expandBigIntegerTenPowers(n: Int): BigInteger {
             var pows = BIG_TEN_POWERS_TABLE
             val curLen = pows.size
@@ -1123,7 +1134,8 @@ internal constructor(
          * @param x the `long`
          * @return the length of the unscaled value, in deciaml digits.
          */
-        fun longDigitLength(x: Long): Int {
+        @JsName("longDigitLength")
+        internal fun longDigitLength(x: Long): Int {
             var x = x
             /*
              * As described in "Bit Twiddling Hacks" by Sean Anderson,
@@ -1458,7 +1470,7 @@ internal constructor(
             }
         }
 
-        fun scaledTenPow(n: Int, sign: Int, scale: Int): BigDecimal {
+        private fun scaledTenPow(n: Int, sign: Int, scale: Int): BigDecimal {
             return if (n < LONG_TEN_POWERS_TABLE.size)
                 valueOf(sign * LONG_TEN_POWERS_TABLE[n], scale)
             else {
@@ -2575,6 +2587,7 @@ internal constructor(
             internal val cmpCharArray = CharArray(19) // character array to place the intCompact
 
             // Accessors.
+            @JsName("getStringBuilder")
             internal fun getStringBuilder(): StringBuilder {
                 sb = StringBuilder()
                 return sb
@@ -2589,6 +2602,7 @@ internal constructor(
              * @return offset to the array where the representation starts.
              * Note: intCompact must be greater or equal to zero.
              */
+            @JsName("putIntCompact")
             internal fun putIntCompact(intCompact: Long): Int {
                 var intCompact = intCompact
                 if (intCompact < 0) {
@@ -2663,6 +2677,7 @@ internal constructor(
             /** BigInteger equal to Long.MAX_VALUE.  */
             private val LONGMAX = BigInteger.valueOf(Long.MAX_VALUE)
 
+            @JsName("check")
             internal fun check(num: BigDecimal) {
                 val intVal = num.inflated()
                 if (intVal < LONGMIN || intVal > LONGMAX) {
@@ -2834,6 +2849,7 @@ internal constructor(
      * fractional part, or will not fit in a `long`.
      * @since  1.5
      */
+    @JsName("longValueExact")
     fun longValueExact(): Long {
         if (intCompact != INFLATED && scale == 0) {
             return intCompact
@@ -2886,6 +2902,7 @@ internal constructor(
      * @return this `BigDecimal` converted to a `BigInteger`.
      * @jls 5.1.3 Narrowing Primitive Conversion
      */
+    @JsName("toBigInteger")
     fun toBigInteger(): BigInteger {
         // force to an integer, quietly
         return this.setScale(0, RoundingMode.DOWN).inflated()
@@ -2901,6 +2918,7 @@ internal constructor(
      * fractional part.
      * @since  Java 1.5
      */
+    @JsName("toBigIntegerExact")
     fun toBigIntegerExact(): BigInteger {
         // round to an integer, with Exception if decimal part non-0
         return this.setScale(0, RoundingMode.UNNECESSARY).inflated()
@@ -2917,6 +2935,7 @@ internal constructor(
      * @param  augend value to be added to this `BigDecimal`.
      * @return `this + augend`
      */
+    @JsName("plus")
     operator fun plus(augend: BigDecimal): BigDecimal {
         return if (this.intCompact != INFLATED) {
             if (augend.intCompact != INFLATED) {
@@ -2943,6 +2962,7 @@ internal constructor(
      * @param  subtrahend value to be subtracted from this `BigDecimal`.
      * @return `this - subtrahend`
      */
+    @JsName("minus")
     operator fun minus(subtrahend: BigDecimal): BigDecimal {
         return if (this.intCompact != INFLATED) {
             if (subtrahend.intCompact != INFLATED) {
@@ -2972,6 +2992,7 @@ internal constructor(
      * @param  multiplicand value to be multiplied by this `BigDecimal`.
      * @return `this * multiplicand`
      */
+    @JsName("times")
     operator fun times(multiplicand: BigDecimal): BigDecimal {
         val productScale = checkScale(this.scale.toLong() + multiplicand.scale)
         return if (this.intCompact != INFLATED) {
@@ -2996,6 +3017,7 @@ internal constructor(
      *
      * @return `abs(this)`
      */
+    @JsName("abs")
     fun abs(): BigDecimal {
         return if (signum() < 0) -this else this
     }
@@ -3008,6 +3030,7 @@ internal constructor(
      *
      * @return `-this`.
      */
+    @JsName("unaryMinus")
     operator fun unaryMinus(): BigDecimal {
         return if (this.intCompact == INFLATED) {
             BigDecimal(this.intVal!!.unaryMinus(), INFLATED, this.scale, this.precision)
@@ -3022,6 +3045,7 @@ internal constructor(
      * @return -1, 0, or 1 as the value of this `BigDecimal`
      * is negative, zero, or positive.
      */
+    @JsName("signum")
     fun signum(): Int {
         return if (this.intCompact != INFLATED)
             (if (this.intCompact > 0) 1 else if (this.intCompact < 0) -1 else 1)
@@ -3039,6 +3063,7 @@ internal constructor(
      *
      * @return the scale of this `BigDecimal`.
      */
+    @JsName("scale")
     fun scale(): Int {
         return this.scale
     }
@@ -3051,8 +3076,9 @@ internal constructor(
      * The precision of a zero value is 1.
      *
      * @return the precision of this `BigDecimal`.
-     * @since  1.5
+     * @since Java 1.5
      */
+    @JsName("precision")
     fun precision(): Int {
         var result = this.precision
         if (result == 0) {
@@ -3074,6 +3100,7 @@ internal constructor(
      * @return the unscaled value of this `BigDecimal`.
      * @since  1.2
      */
+    @JsName("unscaledValue")
     fun unscaledValue(): BigInteger {
         return this.inflated()
     }
@@ -3094,6 +3121,7 @@ internal constructor(
      * of the division exactly.
      * @since Java 1.5
      */
+    @JsName("divideWithRoundingMode")
     fun divide(divisor: BigDecimal, scale: Int, roundingMode: RoundingMode): BigDecimal {
         if (roundingMode < RoundingMode.UP || roundingMode > RoundingMode.UNNECESSARY) {
             throw IllegalArgumentException ("Invalid rounding mode")
@@ -3129,6 +3157,7 @@ internal constructor(
      * @since Java 1.5
      * @author Joseph D. Darcy
      */
+    @JsName("div")
     operator fun div(divisor: BigDecimal): BigDecimal {
         /*
          * Handle zero cases first.
@@ -3196,6 +3225,7 @@ internal constructor(
      * non-terminating decimal expansion.
      * @since  Java 1.5
      */
+    @JsName("divideWithMathContext")
     fun divide(divisor: BigDecimal, mc: MathContext): BigDecimal {
         val mcp = mc.precision
         if (mcp == 0) {
@@ -3257,8 +3287,9 @@ internal constructor(
      * @param  divisor value by which this `BigDecimal` is to be divided.
      * @return `this % divisor`.
      * @throws ArithmeticException if `divisor==0`
-     * @since  1.5
+     * @since Java 1.5
      */
+    @JsName("rem")
     operator fun rem(divisor: BigDecimal): BigDecimal {
         val divrem = this.divideAndRemainder(divisor)
         return divrem[1]
@@ -3285,6 +3316,7 @@ internal constructor(
      * @see .remainder
      * @since  Java 1.5
      */
+    @JsName("divideAndRemainder")
     fun divideAndRemainder(divisor: BigDecimal): Array<BigDecimal> {
         // we use the identity  x = i * y + r to determine r
         val q = this.divideToIntegralValue(divisor)
@@ -3302,6 +3334,7 @@ internal constructor(
      * @throws ArithmeticException if `divisor==0`
      * @since  Java 1.5
      */
+    @JsName("divideToIntegralValue")
     fun divideToIntegralValue(divisor: BigDecimal): BigDecimal {
         // Calculate preferred scale
         val preferredScale = saturateLong(this.scale.toLong() - divisor.scale)
@@ -3371,6 +3404,7 @@ internal constructor(
      * represent a valid rounding mode.
      * @see RoundingMode
      */
+    @JsName("setScaleWithRoundingMode")
     fun setScale(newScale: Int, roundingMode: RoundingMode): BigDecimal {
         val oldScale = this.scale
         if (newScale == oldScale) {
@@ -3460,6 +3494,7 @@ internal constructor(
      * require rounding.
      * @see .setScale
      */
+    @JsName("setScale")
     fun setScale(newScale: Int): BigDecimal {
         return setScale(newScale, RoundingMode.UNNECESSARY)
     }
@@ -3477,8 +3512,9 @@ internal constructor(
      *
      * @return a numerically equal `BigDecimal` with any
      * trailing zeros removed.
-     * @since 1.5
+     * @since Java 1.5
      */
+    @JsName("stripTrailingZeros")
     fun stripTrailingZeros(): BigDecimal {
         return if (this.intCompact == 0L ||
                 this.intVal != null && this.intVal.signum() == 0) {
@@ -3507,6 +3543,7 @@ internal constructor(
      * decimal point moved `n` places to the left.
      * @throws ArithmeticException if scale overflows.
      */
+    @JsName("movePointLeft")
     fun movePointLeft(n: Int): BigDecimal {
         // Cannot use movePointRight(-n) in case of n==Integer.MIN_VALUE
         val newScale = checkScale(scale.toLong() + n)
@@ -3529,6 +3566,7 @@ internal constructor(
      * with the decimal point moved `n` places to the right.
      * @throws ArithmeticException if scale overflows.
      */
+    @JsName("movePointRight")
     fun movePointRight(n: Int): BigDecimal {
         // Cannot use movePointLeft(-n) in case of n==Integer.MIN_VALUE
         val newScale = checkScale(scale.toLong() - n)
@@ -3547,8 +3585,9 @@ internal constructor(
      * @throws ArithmeticException if the scale would be
      * outside the range of a 32-bit integer.
      *
-     * @since 1.5
+     * @since Java 1.5
      */
+    @JsName("scaleByPowerOfTen")
     fun scaleByPowerOfTen(n: Int): BigDecimal {
         return BigDecimal(
             intVal, intCompact,
@@ -3943,6 +3982,7 @@ internal constructor(
      * method, `this` is returned.
      * @see .compareTo
      */
+    @JsName("min")
     fun min(other: BigDecimal): BigDecimal {
         return if (compareTo(other) <= 0) this else other
     }
@@ -3957,6 +3997,7 @@ internal constructor(
      * method, `this` is returned.
      * @see .compareTo
      */
+    @JsName("max")
     fun max(other: BigDecimal): BigDecimal {
         return if (compareTo(other) >= 0) this else other
     }
@@ -3990,10 +4031,11 @@ internal constructor(
      *
      * @return a string representation of this `BigDecimal`
      * without an exponent field.
-     * @since 1.5
+     * @since Java 1.5
      * @see .toString
      * @see .toEngineeringString
      */
+    @JsName("toPlainString")
     fun toPlainString(): String {
         if (this.scale == 0) {
             return if (this.intCompact != INFLATED) {

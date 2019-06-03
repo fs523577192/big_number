@@ -28,6 +28,8 @@
  */
 package org.firas.math
 
+import kotlin.js.JsName
+
 /**
  * Immutable objects which encapsulate the context settings which
  * describe certain rules for numerical operators, such as those
@@ -124,6 +126,7 @@ class MathContext(
          * or of incorrect format
          * @throws NullPointerException if the argument is `null`
          */
+        @JsName("parse")
         fun parse(str: String): MathContext {
             val setPrecision: Int
             val roundingMode: RoundingMode

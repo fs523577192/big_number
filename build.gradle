@@ -9,7 +9,7 @@ repositories {
 }
 
 group 'org.firas.big_number'
-version '0.5.3'
+version '0.6.0'
 
 apply plugin: 'maven-publish'
 kotlin {
@@ -23,12 +23,9 @@ kotlin {
     }
     sourceSets {
         commonMain {
-            languageSettings {
-                languageVersion = '1.3' // possible values: '1.0', '1.1', '1.2', '1.3'
-                apiVersion = '1.3' // possible values: '1.0', '1.1', '1.2', '1.3'
-            }
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
+                api 'org.firas.basic_utils:basic_utils:1.0.0'
             }
         }
         commonTest {
@@ -59,4 +56,5 @@ kotlin {
             }
         }
     }
+    compileKotlinJs.kotlinOptions.moduleKind = 'umd'
 }

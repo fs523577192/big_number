@@ -31,6 +31,7 @@ package org.firas.math
 
 import org.firas.lang.Character
 import org.firas.util.Integers
+import kotlin.js.JsName
 import kotlin.math.absoluteValue
 import kotlin.random.Random
 
@@ -149,6 +150,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * BigInteger.
      * @throws NumberFormatException value is zero bytes long.
      */
+    @JsName("BigInteger_initWithByteArray")
     constructor(value: ByteArray) {
         if (value.size == 0) {
             throw NumberFormatException("Zero length BigInteger")
@@ -181,6 +183,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * legal values (-1, 0, and 1), or `signum` is 0 and
      * `magnitude` contains one or more non-zero bytes.
      */
+    @JsName("BigInteger_initWithSignAndByteArray")
     constructor(signum: Int, magnitude: ByteArray) {
         this.mag = stripLeadingZeroBytes(magnitude)
 
@@ -216,6 +219,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * [Character.MAX_RADIX], inclusive.
      * @see Character.digit
      */
+    @JsName("BigInteger_initWithStringAndRadix")
     internal constructor(value: String, radix: Int) {
         var cursor = 0
         val numDigits: Int
@@ -356,6 +360,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * with the arguments reversed in two ways: it assumes that its
      * arguments are correct, and it doesn't copy the magnitude array.
      */
+    @JsName("BigInteger_initWithSignAndMagnitude")
     internal constructor(magnitude: IntArray, signum: Int) {
         this.signum = if (magnitude.size == 0) 0 else signum
         this.mag = magnitude
@@ -393,6 +398,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * arguments and copies the magnitude so this constructor would be
      * safe for external use.
      */
+    @JsName("BigInteger_initWithSignAndIntArray")
     internal constructor(signum: Int, magnitude: IntArray) {
         this.mag = stripLeadingZeroInts(magnitude)
 
@@ -645,6 +651,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * @param  value value of the BigInteger to return.
          * @return a BigInteger with the specified value.
          */
+        @JsName("fromLong")
         fun valueOf(value: Long): BigInteger {
             // If -MAX_CONSTANT < val < MAX_CONSTANT, return stashed constant
             return when (value) {
@@ -668,6 +675,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * of a BigInteger.
          * @see Character.digit
          */
+        @JsName("fromString")
         fun valueOf(str: String): BigInteger {
             return valueOf(str, 10)
         }
@@ -688,6 +696,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * [Character.MAX_RADIX], inclusive.
          * @see Character.digit
          */
+        @JsName("fromStringAndRadix")
         fun valueOf(str: String, radix: Int): BigInteger {
             var cursor = 0
             val numDigits: Int
@@ -786,6 +795,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * @throws IllegalArgumentException `numBits` is negative.
          * @see .bitLength
          */
+        @JsName("fromRandom")
         fun fromRandom(numBits: Int, rnd: Random): BigInteger {
             return BigInteger(1, randomBits(numBits, rnd))
         }
@@ -826,6 +836,7 @@ class BigInteger: Number, Comparable<BigInteger> {
         /**
          * Package private method to return bit length for an integer.
          */
+        @JsName("bitLengthForInt")
         internal fun bitLengthForInt(n: Int): Int {
             return 32 - Integers.numberOfLeadingZeros(n)
         }
@@ -856,6 +867,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * Returns the input array stripped of any leading zero bytes.
          * Since the source is trusted the copying may be skipped.
          */
+        @JsName("trustedStripLeadingZeroInts")
         internal fun trustedStripLeadingZeroInts(value: IntArray): IntArray {
             val vlen = value.size
 
@@ -1399,7 +1411,8 @@ class BigInteger: Number, Comparable<BigInteger> {
             return z
         } // private fun multiplyToLen(x: IntArray, xlen: Int, y: IntArray, ylen: Int, z: IntArray?): IntArray
 
-        fun javaIncrement(intArray: IntArray): IntArray {
+        @JsName("javaIncrement")
+        internal fun javaIncrement(intArray: IntArray): IntArray {
             var integers = intArray
             var lastSum = 0
             var i = integers.size - 1
@@ -1715,6 +1728,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      *
      * @since  Java 1.8
      */
+    @JsName("longValueExact")
     fun longValueExact(): Long {
         return if (this.mag.size <= 2 && bitLength() <= 63)
             toLong()
@@ -1735,6 +1749,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      *
      * @since  Java 1.8
      */
+    @JsName("intValueExact")
     fun intValueExact(): Int {
         return if (this.mag.size <= 1 && bitLength() <= 31)
             toInt()
@@ -1755,6 +1770,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      *
      * @since  Java 1.8
      */
+    @JsName("shortValueExact")
     fun shortValueExact(): Short {
         if (this.mag.size <= 1 && bitLength() <= 31) {
             val value = toInt()
@@ -1778,6 +1794,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      *
      * @since  Java 1.8
      */
+    @JsName("byteValueExact")
     fun byteValueExact(): Byte {
         if (this.mag.size <= 1 && bitLength() <= 31) {
             val value = toInt()
@@ -1818,6 +1835,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return the BigInteger whose value is the lesser of this BigInteger and
      * `other`.  If they are equal, either may be returned.
      */
+    @JsName("min")
     fun min(other: BigInteger): BigInteger {
         return if (compareTo(other) < 0) this else other
     }
@@ -1829,6 +1847,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return the BigInteger whose value is the greater of this and
      * `other`.  If they are equal, either may be returned.
      */
+    @JsName("max")
     fun max(other: BigInteger): BigInteger {
         return if (compareTo(other) > 0) this else other
     }
@@ -1896,6 +1915,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @see    Character#forDigit
      * @see    #BigInteger(java.lang.String, int)
      */
+    @JsName("toStringWithRadix")
     fun toString(radix: Int): String {
         if (this.signum == 0) {
             return "0"
@@ -1996,6 +2016,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return number of bits in the minimal two's-complement
      * representation of this BigInteger, *excluding* a sign bit.
      */
+    @JsName("bitLength")
     fun bitLength(): Int {
         var n = bitLengthPlusOne - 1
         if (n == -1) { // bitLength not initialized yet
@@ -2033,6 +2054,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return number of bits in the two's complement representation
      * of this BigInteger that differ from its sign bit.
      */
+    @JsName("bitCount")
     fun bitCount(): Int {
         var bc = bitCountPlusOne - 1
         if (bc == -1) {  // bitCount not initialized yet
@@ -2065,6 +2087,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return `true` if and only if the designated bit is set.
      * @throws ArithmeticException `n` is negative.
      */
+    @JsName("testBit")
     fun testBit(n: Int): Boolean {
         if (n < 0) {
             throw ArithmeticException("Negative bit address")
@@ -2080,6 +2103,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return `this | (1<<n)`
      * @throws ArithmeticException `n` is negative.
      */
+    @JsName("setBit")
     fun setBit(n: Int): BigInteger {
         if (n < 0) {
             throw ArithmeticException("Negative bit address")
@@ -2104,6 +2128,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return `this & ~(1<<n)`
      * @throws ArithmeticException `n` is negative.
      */
+    @JsName("clearBit")
     fun clearBit(n: Int): BigInteger {
         if (n < 0) {
             throw ArithmeticException("Negative bit address")
@@ -2128,6 +2153,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return `this ^ (1<<n)`
      * @throws ArithmeticException `n` is negative.
      */
+    @JsName("flipBit")
     fun flipBit(n: Int): BigInteger {
         if (n < 0) {
             throw ArithmeticException("Negative bit address")
@@ -2151,6 +2177,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      *
      * @return index of the rightmost one bit in this BigInteger.
      */
+    @JsName("getLowestSetBit")
     fun getLowestSetBit(): Int {
         var lsb = lowestSetBitPlusTwo - 2
         if (lsb == -2) {  // lowestSetBit not initialized yet
@@ -2282,6 +2309,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      *
      * @return `~this`
      */
+    @JsName("not")
     operator fun not(): BigInteger {
         val result = IntArray(intLength())
         for (i in result.indices) {
@@ -2300,6 +2328,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @param other value to be complemented and AND'ed with this BigInteger.
      * @return `this & ~other`
      */
+    @JsName("andNot")
     fun andNot(other: BigInteger): BigInteger {
         val result = IntArray(maxOf(intLength(), other.intLength()))
         for (i in result.indices) {
@@ -2314,6 +2343,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      *
      * @return `-this`
      */
+    @JsName("unaryMinus")
     operator fun unaryMinus(): BigInteger {
         return BigInteger(this.mag, -this.signum)
     }
@@ -2324,6 +2354,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      *
      * @return `abs(this)`
      */
+    @JsName("abs")
     fun abs(): BigInteger {
         return if (this.signum >= 0) this else -this
     }
@@ -2334,6 +2365,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return -1, 0 or 1 as the value of this BigInteger is negative, zero or
      * positive.
      */
+    @JsName("signum")
     fun signum(): Int {
         return this.signum
     }
@@ -2345,6 +2377,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @param  addend value to be added to this BigInteger.
      * @return `this + addend`
      */
+    @JsName("plus")
     operator fun plus(addend: BigInteger): BigInteger {
         if (addend.signum == 0) {
             return this
@@ -2397,6 +2430,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @param  value value to be subtracted from this BigInteger.
      * @return `this - val`
      */
+    @JsName("minus")
     operator fun minus(value: BigInteger): BigInteger {
         if (value.signum == 0) {
             return this
@@ -2424,6 +2458,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @param  value value to be multiplied by this BigInteger.
      * @return `this * value`
      */
+    @JsName("times")
     operator fun times(value: BigInteger): BigInteger {
         if (value.signum == 0 || this.signum == 0) {
             return ZERO
@@ -2507,6 +2542,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return `this / divisor`
      * @throws ArithmeticException if `divisor` is zero.
      */
+    @JsName("div")
     operator fun div(divisor: BigInteger): BigInteger {
         return if (divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD ||
                 this.mag.size - divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_OFFSET) {
@@ -2527,6 +2563,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * is the final element.
      * @throws ArithmeticException if `divisor` is zero.
      */
+    @JsName("divideAndRemainder")
     fun divideAndRemainder(divisor: BigInteger): Array<BigInteger> {
         return if (divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD ||
                 this.mag.size - divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_OFFSET) {
@@ -2548,6 +2585,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @throws ArithmeticException `m`  0
      * @see .remainder
      */
+    @JsName("rem")
     operator fun rem(m: BigInteger): BigInteger {
         if (m.signum <= 0) {
             throw ArithmeticException("BigInteger: modulus not positive")
@@ -2564,6 +2602,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @return `this % divisor`
      * @throws ArithmeticException if `divisor` is zero.
      */
+    @JsName("remainder")
     fun remainder(divisor: BigInteger): BigInteger {
         return if (divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD ||
                 this.mag.size - divisor.mag.size < AlgorithmUtils.BURNIKEL_ZIEGLER_OFFSET) {
@@ -2582,6 +2621,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @throws ArithmeticException `exponent` is negative.  (This would
      * cause the operation to yield a non-integer value.)
      */
+    @JsName("pow")
     fun pow(exponent: Int): BigInteger {
         if (exponent < 0) {
             throw ArithmeticException("Negative exponent")
@@ -2701,6 +2741,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @param  other value with which the GCD is to be computed.
      * @return `GCD(abs(this), abs(val))`
      */
+    @JsName("gcd")
     fun gcd(other: BigInteger): BigInteger {
         if (other.signum == 0) {
             return this.abs()
@@ -2728,6 +2769,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * prime* to `m`.
      * @see .modInverse
      */
+    @JsName("modPow")
     fun modPow(exponent: BigInteger, m: BigInteger): BigInteger {
         var exponent = exponent
         if (m.signum <= 0) {
@@ -2808,6 +2850,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * has no multiplicative inverse mod m (that is, this BigInteger
      * is not *relatively prime* to m).
      */
+    @JsName("modInverse")
     fun modInverse(m: BigInteger): BigInteger {
         if (m.signum != 1) {
             throw ArithmeticException("BigInteger: modulus not positive")
@@ -3073,6 +3116,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * `sqrt(-1)`.)
      * @since  Java 9
      */
+    @JsName("sqrt")
     fun sqrt(): BigInteger {
         if (this.signum < 0) {
             throw ArithmeticException("Negative BigInteger")
@@ -3096,6 +3140,7 @@ class BigInteger: Number, Comparable<BigInteger> {
      * @see .sqrt
      * @since  Java 9
      */
+    @JsName("sqrtAndRemainder")
     fun sqrtAndRemainder(): Array<BigInteger> {
         val s = sqrt()
         val r = this - AlgorithmUtils.square(s)
