@@ -30,6 +30,7 @@ import org.firas.math.BigDecimal.Companion.INFLATED
 import org.firas.math.BigInteger.Companion.LONG_MASK
 import org.firas.util.Arrays
 import org.firas.util.Integers
+import kotlin.js.JsName
 import kotlin.math.absoluteValue
 
 /**
@@ -69,26 +70,28 @@ internal open class MutableBigInteger private constructor(
      * The default constructor. An empty MutableBigInteger is created with
      * a one word capacity.
      */
+    @JsName("MutableBigInteger_init")
     internal constructor(): this(IntArray(1), 0)
 
     /**
      * Construct a new MutableBigInteger with a magnitude specified by
      * the int val.
      */
-    internal constructor(value: Int): this(IntArray(1), 1) {
-        this.value[0] = value
-    }
+    @JsName("MutableBigInteger_initWithInt")
+    internal constructor(value: Int): this(intArrayOf(value), 1)
 
     /**
      * Construct a new MutableBigInteger with the specified value array
      * up to the length of the array supplied.
      */
+    @JsName("MutableBigInteger_initWithIntArray")
     internal constructor(value: IntArray): this(value, value.size)
 
     /**
      * Construct a new MutableBigInteger with a magnitude equal to the
      * specified MutableBigInteger.
      */
+    @JsName("MutableBigInteger_copy")
     internal constructor(value: MutableBigInteger):
             this(value.value.copyOfRange(value.offset, value.offset + value.intLen), value.intLen)
 
@@ -96,6 +99,7 @@ internal open class MutableBigInteger private constructor(
      * Construct a new MutableBigInteger with a magnitude equal to the
      * specified BigInteger.
      */
+    @JsName("MutableBigInteger_initWithBigInteger")
     internal constructor(value: BigInteger): this(value.mag.copyOf(), value.mag.size)
 
     companion object {
@@ -194,6 +198,7 @@ internal open class MutableBigInteger private constructor(
         /**
          * Returns the multiplicative inverse of val mod 2^32.  Assumes val is odd.
          */
+        @JsName("inverseMod32")
         internal fun inverseMod32(value: Int): Int {
             // Newton's iteration!
             var t = value
@@ -207,6 +212,7 @@ internal open class MutableBigInteger private constructor(
         /**
          * Calculate the multiplicative inverse of 2^k mod mod, where mod is odd.
          */
+        @JsName("modInverseBP2")
         internal fun modInverseBP2(mod: MutableBigInteger, k: Int): MutableBigInteger {
             // Copy the mod to protect original
             return fixup(MutableBigInteger(1), MutableBigInteger(mod), k)
@@ -215,6 +221,7 @@ internal open class MutableBigInteger private constructor(
         /**
          * Calculate GCD of a and b interpreted as unsigned integers.
          */
+        @JsName("binaryGcd")
         internal fun binaryGcd(a: Int, b: Int): Int {
             var a = a
             var b = b
@@ -249,6 +256,7 @@ internal open class MutableBigInteger private constructor(
          * Calculates X such that X = C * 2^(-k) (mod P)
          * Assumes C<P and P is odd.
          */
+        @JsName("fixup")
         internal fun fixup(c: MutableBigInteger, p: MutableBigInteger,
                   k: Int): MutableBigInteger {
             val temp = MutableBigInteger()
@@ -278,7 +286,7 @@ internal open class MutableBigInteger private constructor(
             }
 
             // In theory, c may be greater than p at this point (Very rare!)
-            while (c.compare(p) >= 0) {
+            while (c.compareTo(p) >= 0) {
                 c.subtract(p)
             }
             return c
@@ -294,6 +302,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Convert this MutableBigInteger to a BigInteger object.
      */
+    @JsName("toBigIntegerWithSign")
     internal fun toBigInteger(sign: Int): BigInteger {
         return if (this.intLen == 0 || sign == 0) BigInteger.ZERO else BigInteger(getMagnitudeArray(), sign)
     }
@@ -301,6 +310,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Converts this number to a nonnegative `BigInteger`.
      */
+    @JsName("toBigInteger")
     internal fun toBigInteger(): BigInteger {
         normalize()
         return toBigInteger(if (isZero()) 0 else 1)
@@ -310,6 +320,7 @@ internal open class MutableBigInteger private constructor(
      * Convert this MutableBigInteger to BigDecimal object with the specified sign
      * and scale.
      */
+    @JsName("toBigDecimal")
     fun toBigDecimal(sign: Int, scale: Int): BigDecimal {
         if (this.intLen == 0 || sign == 0) {
             return BigDecimal.zeroValueOf(scale)
@@ -371,6 +382,7 @@ internal open class MutableBigInteger private constructor(
      * object into a long value given a specified sign.
      * returns INFLATED if value is not fit into long
      */
+    @JsName("toCompactValue")
     internal fun toCompactValue(sign: Int): Long {
         if (this.intLen == 0 || sign == 0) {
             return 0L
@@ -412,7 +424,8 @@ internal open class MutableBigInteger private constructor(
      * as this MutableBigInteger is numerically less than, equal to, or
      * greater than <tt>b</tt>.
      */
-    internal fun compare(b: MutableBigInteger): Int {
+    @JsName("compareTo")
+    internal operator fun compareTo(b: MutableBigInteger): Int {
         val blen = b.intLen
         if (intLen < blen) {
             return -1
@@ -442,7 +455,7 @@ internal open class MutableBigInteger private constructor(
     }
 
     /**
-     * Returns a value equal to what `b.leftShift(32*ints); return compare(b);`
+     * Returns a value equal to what `b.leftShift(32*ints); return compareTo(b);`
      * would return, but doesn't change the value of `b`.
      */
     private fun compareShifted(b: MutableBigInteger, ints: Int): Int {
@@ -481,6 +494,7 @@ internal open class MutableBigInteger private constructor(
      * Assumes no leading unnecessary zeros, which holds for results
      * from divide().
      */
+    @JsName("compareHalf")
     internal fun compareHalf(b: MutableBigInteger): Int {
         val blen = b.intLen
         val len = intLen
@@ -561,6 +575,7 @@ internal open class MutableBigInteger private constructor(
      * making sure that there are no leading zeros, and that if the
      * magnitude is zero, then intLen is zero.
      */
+    @JsName("normalize")
     internal fun normalize() {
         if (this.intLen == 0) {
             this.offset = 0
@@ -597,6 +612,7 @@ internal open class MutableBigInteger private constructor(
      * Convert this MutableBigInteger into an int array with no leading
      * zeros, of a length that is equal to this MutableBigInteger's intLen.
      */
+    @JsName("toIntArray")
     internal fun toIntArray(): IntArray {
         val result = IntArray(this.intLen)
         for (i in 0 until this.intLen) {
@@ -618,6 +634,7 @@ internal open class MutableBigInteger private constructor(
      * Sets this MutableBigInteger's value array to the specified array.
      * The intLen is set to the specified length.
      */
+    @JsName("setValue")
     internal fun setValue(value: IntArray, length: Int) {
         this.value = value
         this.intLen = length
@@ -652,6 +669,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Returns true iff this MutableBigInteger has a value of one.
      */
+    @JsName("isOne")
     internal fun isOne(): Boolean {
         return this.intLen == 1 && this.value[this.offset] == 1
     }
@@ -659,6 +677,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Returns true iff this MutableBigInteger has a this.value of zero.
      */
+    @JsName("isZero")
     internal fun isZero(): Boolean {
         return this.intLen == 0
     }
@@ -666,6 +685,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Returns true iff this MutableBigInteger is even.
      */
+    @JsName("isEven")
     internal fun isEven(): Boolean {
         return this.intLen == 0 || this.value[this.offset + this.intLen - 1].and(1) == 0
     }
@@ -673,6 +693,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Returns true iff this MutableBigInteger is odd.
      */
+    @JsName("isOdd")
     internal fun isOdd(): Boolean {
         return if (isZero()) false else this.value[this.offset + this.intLen - 1].and(1) == 1
     }
@@ -682,6 +703,7 @@ internal open class MutableBigInteger private constructor(
      * MutableBigInteger is in normal form if it has no leading zeros
      * after the offset, and intLen + offset <= value.length.
      */
+    @JsName("isNormal")
     internal fun isNormal(): Boolean {
         if (this.intLen + this.offset > this.value.size) {
             return false
@@ -704,6 +726,7 @@ internal open class MutableBigInteger private constructor(
      * Right shift this MutableBigInteger n bits. The MutableBigInteger is left
      * in normal form.
      */
+    @JsName("rightShift")
     internal fun rightShift(n: Int) {
         if (this.intLen == 0) {
             return
@@ -735,6 +758,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Left shift this MutableBigInteger n bits.
      */
+    @JsName("leftShift")
     internal fun leftShift(n: Int) {
         /*
          * If there is enough storage space in this MutableBigInteger already
@@ -794,12 +818,13 @@ internal open class MutableBigInteger private constructor(
      * Subtracts the smaller of this and b from the larger and places the
      * result into this MutableBigInteger.
      */
+    @JsName("subtract")
     internal fun subtract(other: MutableBigInteger): Int {
         var a = this
         var b = other
 
         var result = value
-        val sign = a.compare(b)
+        val sign = a.compareTo(b)
 
         if (sign == 0) {
             reset()
@@ -853,7 +878,7 @@ internal open class MutableBigInteger private constructor(
     private fun difference(other: MutableBigInteger): Int {
         var a = this
         var b = other
-        val sign = a.compare(b)
+        val sign = a.compareTo(b)
         if (sign == 0) {
             return 0
         }
@@ -890,6 +915,7 @@ internal open class MutableBigInteger private constructor(
      * Multiply the contents of two MutableBigInteger objects. The result is
      * placed into MutableBigInteger z. The contents of y are not changed.
      */
+    @JsName("multiply")
     internal fun multiply(y: MutableBigInteger, z: MutableBigInteger) {
         val xLen = intLen
         val yLen = y.intLen
@@ -943,6 +969,7 @@ internal open class MutableBigInteger private constructor(
      * Multiply the contents of this MutableBigInteger by the word y. The
      * result is placed into z.
      */
+    @JsName("mul")
     internal fun mul(y: Int, z: MutableBigInteger) {
         if (y == 1) {
             z.copyValue(this)
@@ -985,6 +1012,7 @@ internal open class MutableBigInteger private constructor(
      *
      * @return the remainder of the division will be returned.
      */
+    @JsName("divideLong")
     internal fun divide(v: Long, quotient: MutableBigInteger): Long {
         var v = v
         if (v == 0L) {
@@ -1012,6 +1040,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * @see .divideKnuth
      */
+    @JsName("divideBigIntegerKnuth")
     internal fun divideKnuth(b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger? {
         return divideKnuth(b, quotient, true)
     }
@@ -1021,10 +1050,12 @@ internal open class MutableBigInteger private constructor(
      * provided MutableBigInteger objects and the remainder object is returned.
      *
      */
+    @JsName("divideMutableBigInteger")
     internal fun divide(b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger {
         return divide(b, quotient, true)!!
     }
 
+    @JsName("divide")
     internal fun divide(b: MutableBigInteger, quotient: MutableBigInteger,
                         needRemainder: Boolean): MutableBigInteger? {
         return if (b.intLen < AlgorithmUtils.BURNIKEL_ZIEGLER_THRESHOLD ||
@@ -1046,6 +1077,7 @@ internal open class MutableBigInteger private constructor(
      * changed.
      *
      */
+    @JsName("divideKnuth")
     internal fun divideKnuth(b: MutableBigInteger, quotient: MutableBigInteger,
                     needRemainder: Boolean): MutableBigInteger? {
         var b = b
@@ -1059,7 +1091,7 @@ internal open class MutableBigInteger private constructor(
             return if (needRemainder) MutableBigInteger() else null
         }
 
-        val cmp = compare(b)
+        val cmp = compareTo(b)
         // Dividend less than divisor
         if (cmp < 0) {
             quotient.intLen = 0
@@ -1113,6 +1145,7 @@ internal open class MutableBigInteger private constructor(
      * @param quotient output parameter for `this/b`
      * @return the remainder
      */
+    @JsName("divideAndRemainderBurnikelZiegler")
     internal fun divideAndRemainderBurnikelZiegler(
             b: MutableBigInteger, quotient: MutableBigInteger): MutableBigInteger {
         val r = intLen
@@ -1259,7 +1292,7 @@ internal open class MutableBigInteger private constructor(
         r.addLower(this, n)
 
         // step 6: add b until r>=d
-        while (r.compare(d) < 0) {
+        while (r.compareTo(d) < 0) {
             r += b
             quotient.subtract(MutableBigInteger.ONE)
         }
@@ -1484,6 +1517,7 @@ internal open class MutableBigInteger private constructor(
      *
      * @return the remainder of the division is returned.
      */
+    @JsName("divideOneWord")
     internal fun divideOneWord(divisor: Int, quotient: MutableBigInteger): Int {
         val divisorLong = divisor.toLong() and LONG_MASK
 
@@ -1689,6 +1723,7 @@ internal open class MutableBigInteger private constructor(
      * Returns the modInverse of this mod p. This and p are not affected by
      * the operation.
      */
+    @JsName("mutableModInverse")
     internal fun mutableModInverse(p: MutableBigInteger): MutableBigInteger {
         // Modulus is odd, use Schroeppel's algorithm
         if (p.isOdd()) {
@@ -1764,7 +1799,7 @@ internal open class MutableBigInteger private constructor(
                 throw ArithmeticException("BigInteger not invertible.")
             }
             // If f < g exchange f, g and c, d
-            if (f.compare(g) < 0) {
+            if (f.compareTo(g) < 0) {
                 val temp = f
                 f = g
                 g = temp
@@ -1832,6 +1867,7 @@ internal open class MutableBigInteger private constructor(
     /**
      * Calculate GCD of this and b. This and b are changed by the computation.
      */
+    @JsName("hybridGCD")
     internal fun hybridGCD(other: MutableBigInteger): MutableBigInteger {
         var b = other
         // Use Euclid's algorithm until the numbers are approximately the
@@ -1926,6 +1962,7 @@ internal open class MutableBigInteger private constructor(
      * @return the integer square root of {@code this}
      * @since Java 9
      */
+    @JsName("sqrt")
     internal fun sqrt(): MutableBigInteger {
         // Special cases.
         if (this.isZero()) {
@@ -1990,7 +2027,7 @@ internal open class MutableBigInteger private constructor(
                 xk1.rightShift(1)
 
                 // Terminate when non-decreasing.
-                if (xk1.compare(xk) >= 0) {
+                if (xk1.compareTo(xk) >= 0) {
                     return xk
                 }
 

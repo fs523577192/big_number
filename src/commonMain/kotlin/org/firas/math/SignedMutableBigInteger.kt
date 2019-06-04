@@ -26,6 +26,8 @@
  */
 package org.firas.math
 
+import kotlin.js.JsName
+
 /**
  * A class used to represent multiprecision integers that makes efficient
  * use of allocated space by allowing a number to occupy only part of
@@ -56,25 +58,29 @@ internal class SignedMutableBigInteger: MutableBigInteger {
      * The default constructor. An empty MutableBigInteger is created with
      * a one word capacity.
      */
+    @JsName("SignedMutableBigInteger_init")
     internal constructor(): super()
 
     /**
      * Construct a new MutableBigInteger with a magnitude specified by
      * the int val.
      */
+    @JsName("SignedMutableBigInteger_initWithInt")
     internal constructor(value: Int): super(value)
 
     /**
      * Construct a new MutableBigInteger with a magnitude equal to the
      * specified MutableBigInteger.
      */
+    @JsName("SignedMutableBigInteger_initWithMutableBigInteger")
     internal constructor(value: MutableBigInteger): super(value)
 
     // --== Arithmetic Operations ==--
     /**
      * Signed addition built upon unsigned add and subtract.
      */
-    fun signedAdd(addend: SignedMutableBigInteger) {
+    @JsName("signedAdd")
+    internal fun signedAdd(addend: SignedMutableBigInteger) {
         if (this.sign == addend.sign) {
             plusAssign(addend)
         } else {
@@ -85,7 +91,8 @@ internal class SignedMutableBigInteger: MutableBigInteger {
     /**
      * Signed addition built upon unsigned add and subtract.
      */
-    fun signedAdd(addend: MutableBigInteger) {
+    @JsName("signedAddMutableBigInteger")
+    internal fun signedAdd(addend: MutableBigInteger) {
         if (this.sign == 1) {
             plusAssign(addend)
         } else {
@@ -96,7 +103,8 @@ internal class SignedMutableBigInteger: MutableBigInteger {
     /**
      * Signed subtraction built upon unsigned add and subtract.
      */
-    fun signedSubtract(addend: SignedMutableBigInteger) {
+    @JsName("signedSubtract")
+    internal fun signedSubtract(addend: SignedMutableBigInteger) {
         if (this.sign == addend.sign) {
             this.sign = this.sign * subtract(addend)
         } else {
@@ -107,7 +115,8 @@ internal class SignedMutableBigInteger: MutableBigInteger {
     /**
      * Signed subtraction built upon unsigned add and subtract.
      */
-    fun signedSubtract(addend: MutableBigInteger) {
+    @JsName("signedSubtractMutableBigInteger")
+    internal fun signedSubtract(addend: MutableBigInteger) {
         if (this.sign == 1) {
             this.sign = this.sign * subtract(addend)
         } else {
@@ -116,5 +125,13 @@ internal class SignedMutableBigInteger: MutableBigInteger {
         if (this.intLen == 0) {
             this.sign = 1
         }
+    }
+
+    /**
+     * Print out the first intLen ints of this MutableBigInteger's value
+     * array starting at offset.
+     */
+    override fun toString(): String {
+        return this.toBigInteger(this.sign).toString()
     }
 }
