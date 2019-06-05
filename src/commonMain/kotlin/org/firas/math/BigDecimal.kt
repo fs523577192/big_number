@@ -32,6 +32,7 @@ package org.firas.math
 import org.firas.lang.Character
 import org.firas.util.Integers
 import kotlin.js.JsName
+import kotlin.jvm.JvmStatic
 import kotlin.math.absoluteValue
 
 
@@ -278,6 +279,7 @@ internal constructor(
      * @param intVal `BigInteger` value to be converted to
      * `BigDecimal`.
      */
+    @JsName("BigDecimal_initWithBigInteger")
     constructor(intVal: BigInteger): this(intVal, compactValFor(intVal), 0, 0)
 
     /**
@@ -289,6 +291,7 @@ internal constructor(
      * @param unscaledVal unscaled value of the `BigDecimal`.
      * @param scale scale of the `BigDecimal`.
      */
+    @JsName("BigDecimal_initWithBigIntegerAndScale")
     constructor(unscaledVal: BigInteger, scale: Int): this(unscaledVal, compactValFor(unscaledVal), scale, 0)
 
     /**
@@ -299,6 +302,7 @@ internal constructor(
      * `BigDecimal`
      * @since Java 1.5
      */
+    @JsName("BigDecimal_initWithInt")
     constructor(intVal: Int): this(null, intVal.toLong(), 0, 0)
 
     /**
@@ -309,6 +313,7 @@ internal constructor(
      * `BigDecimal`
      * @since Java 1.5
      */
+    @JsName("BigDecimal_initWithLong")
     constructor(longVal: Long): this(if (INFLATED == longVal) INFLATED_BIGINT else null, longVal, 0, 0)
 
     companion object {
@@ -326,6 +331,7 @@ internal constructor(
          * <tt>(unscaledVal  10<sup>-scale</sup>)</tt>.
          */
         @JsName("fromLongAndScale")
+        @JvmStatic
         fun valueOf(unscaledVal: Long, scale: Int): BigDecimal {
             if (scale == 0)
                 return valueOf(unscaledVal)
@@ -352,6 +358,7 @@ internal constructor(
          * @return a `BigDecimal` whose value is `longVal`.
          */
         @JsName("fromLong")
+        @JvmStatic
         fun valueOf(longVal: Long): BigDecimal {
             if (longVal >= 0 && longVal < zeroThroughTen.size)
                 return zeroThroughTen[longVal.toInt()]
@@ -466,6 +473,7 @@ internal constructor(
          * representation of a `BigDecimal`.
          */
         @JsName("fromString")
+        @JvmStatic
         fun valueOf(str: String): BigDecimal {
             return valueOf(Character.stringToCharArray(str), 0, str.length)
         }
@@ -485,6 +493,7 @@ internal constructor(
          * @since  1.5
          */
         @JsName("fromStringAndMathContext")
+        @JvmStatic
         fun valueOf(str: String, mc: MathContext): BigDecimal {
             return valueOf(Character.stringToCharArray(str), 0, str.length, mc)
         }
@@ -509,6 +518,7 @@ internal constructor(
          * @since  Java 1.5
          */
         @JsName("fromCharArray")
+        @JvmStatic
         fun valueOf(chars: CharArray, offset: Int, len: Int): BigDecimal {
             return valueOf(chars, offset, len, MathContext.UNLIMITED)
         }
@@ -537,6 +547,7 @@ internal constructor(
          * @since  Java 1.5
          */
         @JsName("fromCharArrayAndMathContext")
+        @JvmStatic
         fun valueOf(chars: CharArray, offset: Int, len: Int, mc: MathContext): BigDecimal {
             var offset = offset
             var len = len
@@ -767,6 +778,7 @@ internal constructor(
         }
 
         @JsName("fromLongScaleAndPrecision")
+        @JvmStatic
         internal fun valueOf(unscaledVal: Long, scale: Int, prec: Int): BigDecimal {
             if (scale == 0 && unscaledVal >= 0 && unscaledVal < zeroThroughTen.size) {
                 return zeroThroughTen[unscaledVal.toInt()]

@@ -32,6 +32,7 @@ package org.firas.math
 import org.firas.lang.Character
 import org.firas.util.Integers
 import kotlin.js.JsName
+import kotlin.jvm.JvmStatic
 import kotlin.math.absoluteValue
 import kotlin.random.Random
 
@@ -463,9 +464,13 @@ class BigInteger: Number, Comparable<BigInteger> {
          * is called
          */
         private const val MAX_CONSTANT = 16
+
+        @JvmStatic
         private val posConst = Array(MAX_CONSTANT + 1) {
             BigInteger(intArrayOf(it), 1)
         }
+
+        @JvmStatic
         private val negConst = Array(MAX_CONSTANT + 1) {
             BigInteger(intArrayOf(it), -1)
         }
@@ -475,6 +480,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          *
          * @since   Java 1.2
          */
+        @JvmStatic
         val ZERO = BigInteger(IntArray(0), 0)
 
         /**
@@ -482,6 +488,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          *
          * @since   Java 1.2
          */
+        @JvmStatic
         val ONE = valueOf(1)
 
         /**
@@ -489,11 +496,13 @@ class BigInteger: Number, Comparable<BigInteger> {
          *
          * @since   Java 9
          */
+        @JvmStatic
         val TWO = valueOf(2)
 
         /**
          * The BigInteger constant -1.  (Not exported.)
          */
+        @JvmStatic
         private val NEGATIVE_ONE = valueOf(-1)
 
         /**
@@ -501,6 +510,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          *
          * @since   Java 1.5
          */
+        @JvmStatic
         val TEN = valueOf(10)
 
         /**
@@ -522,7 +532,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * relatively flat for thresholds between 2-25, so this choice may be
          * varied within this range for very small effect.
          */
-        private val SCHOENHAGE_BASE_CONVERSION_THRESHOLD = 20
+        private const val SCHOENHAGE_BASE_CONVERSION_THRESHOLD = 20
 
         /*
          * The following two arrays are used for fast String conversions.  Both
@@ -535,6 +545,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * nonsense values in their 0 and 1 elements, as radixes 0 and 1 are not
          * used.
          */
+        @JvmStatic
         private val digitsPerLong = intArrayOf(0, 0, 62, 39, 31,
                 27, 24, 22, 20, 19,
                 18, 18, 17, 17, 16,
@@ -544,6 +555,7 @@ class BigInteger: Number, Comparable<BigInteger> {
                 12, 12, 12, 12, 12,
                 12, 12)
 
+        @JvmStatic
         private val longRadix = arrayOf<BigInteger>(ZERO, ZERO, // The first two item is useless
                 valueOf(0x4000000000000000L),
                 valueOf(0x383d9170b85ff80bL),
@@ -584,6 +596,7 @@ class BigInteger: Number, Comparable<BigInteger> {
         /*
          * These two arrays are the integer analogue of above.
          */
+        @JvmStatic
         private val digitsPerInt = intArrayOf(0, 0, 30, 19, 15,
                 13, 11, 11, 10, 9,
                 9, 8, 8, 8, 8,
@@ -593,6 +606,7 @@ class BigInteger: Number, Comparable<BigInteger> {
                 6, 6, 6, 6, 6,
                 6, 5)
 
+        @JvmStatic
         private val intRadix = intArrayOf(0, 0,
                 0x40000000,
                 0x4546b3db,
@@ -632,6 +646,7 @@ class BigInteger: Number, Comparable<BigInteger> {
 
         // bitsPerDigit in the given radix times 1024
         // Rounded up to avoid underallocation.
+        @JvmStatic
         private val bitsPerDigit = longArrayOf(0, 0, 1024, 1624, 2048,
                 2378, 2648, 2875, 3072, 3247,
                 3402, 3543, 3672, 3790, 3899,
@@ -652,6 +667,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * @return a BigInteger with the specified value.
          */
         @JsName("fromLong")
+        @JvmStatic
         fun valueOf(value: Long): BigInteger {
             // If -MAX_CONSTANT < val < MAX_CONSTANT, return stashed constant
             return when (value) {
@@ -676,6 +692,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * @see Character.digit
          */
         @JsName("fromString")
+        @JvmStatic
         fun valueOf(str: String): BigInteger {
             return valueOf(str, 10)
         }
@@ -697,6 +714,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * @see Character.digit
          */
         @JsName("fromStringAndRadix")
+        @JvmStatic
         fun valueOf(str: String, radix: Int): BigInteger {
             var cursor = 0
             val numDigits: Int
@@ -796,6 +814,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * @see .bitLength
          */
         @JsName("fromRandom")
+        @JvmStatic
         fun fromRandom(numBits: Int, rnd: Random): BigInteger {
             return BigInteger(1, randomBits(numBits, rnd))
         }
@@ -805,6 +824,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * Assumes that the input array will not be modified (the returned
          * BigInteger will reference the input array if feasible).
          */
+        @JvmStatic
         private fun valueOf(value: IntArray): BigInteger {
             return if (value[0] > 0) BigInteger(value, 1) else BigInteger(value)
         }
@@ -814,29 +834,35 @@ class BigInteger: Number, Comparable<BigInteger> {
          * recalculate powers of radix^(2^n) more than once.  This speeds
          * Schoenhage recursive base conversion significantly.
          */
+        @JvmStatic
         private var powerCache: Array<Array<BigInteger>> = Array(Character.MAX_RADIX + 1) {
             if (it < Character.MIN_RADIX) arrayOf() else arrayOf(BigInteger.valueOf(it.toLong()))
         }
 
         /** The cache of logarithms of radices for base conversion.  */
+        @JvmStatic
         private var logCache: DoubleArray = DoubleArray(Character.MAX_RADIX + 1) {
             if (it < Character.MIN_RADIX) 0.0 else kotlin.math.ln(it.toDouble())
         }
 
         /** The natural log of 2.  This is used in computing cache indices.  */
+        @JvmStatic
         private val LOG_TWO = kotlin.math.ln(2.0)
 
         /* zero[i] is a string of i consecutive zeros. */
+        @JvmStatic
         private val zeros = Array(64) {
             "000000000000000000000000000000000000000000000000000000000000000".substring(0, it)
         }
 
+        @JvmStatic
         private val bnExpModThreshTable = intArrayOf(7, 25, 81, 241, 673, 1793, Int.MAX_VALUE) // Sentinel
 
         /**
          * Package private method to return bit length for an integer.
          */
         @JsName("bitLengthForInt")
+        @JvmStatic
         internal fun bitLengthForInt(n: Int): Int {
             return 32 - Integers.numberOfLeadingZeros(n)
         }
@@ -845,6 +871,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * Calculate bitlength of contents of the first len elements an int array,
          * assuming there are no leading zero ints.
          */
+        @JvmStatic
         private fun bitLength(value: IntArray, len: Int): Int {
             return if (len == 0) 0 else (len - 1 shl 5) + bitLengthForInt(value[0])
         }
@@ -852,6 +879,7 @@ class BigInteger: Number, Comparable<BigInteger> {
         /**
          * Returns a copy of the input array stripped of any leading zero bytes.
          */
+        @JvmStatic
         private fun stripLeadingZeroInts(value: IntArray): IntArray {
             val vlen = value.size
 
@@ -868,6 +896,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * Since the source is trusted the copying may be skipped.
          */
         @JsName("trustedStripLeadingZeroInts")
+        @JvmStatic
         internal fun trustedStripLeadingZeroInts(value: IntArray): IntArray {
             val vlen = value.size
 
@@ -882,6 +911,7 @@ class BigInteger: Number, Comparable<BigInteger> {
         /**
          * Returns a copy of the input array stripped of any leading zero bytes.
          */
+        @JvmStatic
         private fun stripLeadingZeroBytes(a: ByteArray): IntArray {
             val byteLength = a.size
 
@@ -913,6 +943,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * Assumes start < end. The result may be negative, but it
          * is to be treated as an unsigned value.
          */
+        @JvmStatic
         private fun parseInt(source: CharArray, start: Int, end: Int): Int {
             var startIndex = start
             var result = Character.digit(source[startIndex], 10)
@@ -934,6 +965,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * Takes an array a representing a negative 2's-complement number and
          * returns the minimal (no leading zero bytes) unsigned whose value is -a.
          */
+        @JvmStatic
         private fun makePositive(a: ByteArray): IntArray {
             val byteLength = a.size
 
@@ -988,6 +1020,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * Takes an array a representing a negative 2's-complement number and
          * returns the minimal (no leading zero ints) unsigned whose value is -a.
          */
+        @JvmStatic
         private fun makePositive(a: IntArray): IntArray {
             // Find first non-sign (0xffffffff) int of input
             var keep: Int = 0
@@ -1019,6 +1052,7 @@ class BigInteger: Number, Comparable<BigInteger> {
         } // private fun makePositive(a: IntArray): IntArray
 
         // Multiply x array times word y in place, and add word z
+        @JvmStatic
         private fun destructiveMulAdd(x: IntArray, y: Int, z: Int) {
             // Perform the multiplication word by word
             val ylong = y.toLong() and LONG_MASK
@@ -1043,6 +1077,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             }
         } // private fun destructiveMulAdd(x: IntArray, y: Int, z: Int)
 
+        @JvmStatic
         private fun randomBits(numBits: Int, rnd: Random): ByteArray {
             if (numBits < 0) {
                 throw IllegalArgumentException("numBits must be non-negative")
@@ -1068,6 +1103,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * @param  n unsigned shift distance, in bits.
          * @return `mag << n`
          */
+        @JvmStatic
         private fun shiftLeft(mag: IntArray, n: Int): IntArray {
             val nInts = n.ushr(5)
             val nBits = n and 0x1f
@@ -1101,6 +1137,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * Left shift int array a up to len by n bits. Returns the array that
          * results from the shift since space may have to be reallocated.
          */
+        @JvmStatic
         private fun leftShift(a: IntArray, len: Int, n: Int): IntArray {
             val nInts = n.ushr(5)
             val nBits = n and 0x1F
@@ -1131,6 +1168,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * a reference to that array.  Assumes x.length &gt; 0 and val is
          * non-negative
          */
+        @JvmStatic
         private fun add(x: IntArray, value: Long): IntArray {
             var sum: Long
             var xIndex = x.size
@@ -1183,6 +1221,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * a new int array to hold the answer and returns a reference to that
          * array.
          */
+        @JvmStatic
         private fun add(xArray: IntArray, yArray: IntArray): IntArray {
             var x = xArray
             var y = yArray
@@ -1235,6 +1274,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             return result
         } // private fun add(x: IntArray, y: IntArray): IntArray
 
+        @JvmStatic
         private fun subtract(value: Long, little: IntArray): IntArray {
             val highWord = value.ushr(32).toInt()
             if (highWord == 0) {
@@ -1273,6 +1313,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * answer.
          * assumes val &gt;= 0
          */
+        @JvmStatic
         private fun subtract(big: IntArray, value: Long): IntArray {
             val highWord = value.ushr(32).toInt()
             var bigIndex = big.size
@@ -1314,6 +1355,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * than the second.  This method allocates the space necessary to hold the
          * answer.
          */
+        @JvmStatic
         private fun subtract(big: IntArray, little: IntArray): IntArray {
             var bigIndex = big.size
             val result = IntArray(bigIndex)
@@ -1345,6 +1387,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             return result
         } // private fun subtract(big: IntArray, little: IntArray): IntArray
 
+        @JvmStatic
         private fun multiplyByInt(x: IntArray, y: Int, sign: Int): BigInteger {
             if (Integers.bitCount(y) == 1) {
                 return BigInteger(shiftLeft(x, Integers.numberOfTrailingZeros(y)), sign)
@@ -1372,6 +1415,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * Multiplies int arrays x and y to the specified lengths and places
          * the result into z. There will be no leading zeros in the resultant array.
          */
+        @JvmStatic
         private fun multiplyToLen(x: IntArray, xlen: Int, y: IntArray, ylen: Int, z: IntArray?): IntArray {
             var z = z
             val xstart = xlen - 1
@@ -1412,6 +1456,7 @@ class BigInteger: Number, Comparable<BigInteger> {
         } // private fun multiplyToLen(x: IntArray, xlen: Int, y: IntArray, ylen: Int, z: IntArray?): IntArray
 
         @JsName("javaIncrement")
+        @JvmStatic
         internal fun javaIncrement(intArray: IntArray): IntArray {
             var integers = intArray
             var lastSum = 0
@@ -1442,6 +1487,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * @param radix  The base to convert to.
          * @param digits The minimum number of digits to pad to.
          */
+        @JvmStatic
         private fun toString(
             u: BigInteger, sb: StringBuilder, radix: Int,
             digits: Int
@@ -1488,6 +1534,7 @@ class BigInteger: Number, Comparable<BigInteger> {
          * This could be changed to a more complicated caching method using
          * `Future`.
          */
+        @JvmStatic
         private fun getRadixConversionCache(radix: Int, exponent: Int): BigInteger {
             val cacheLine: Array<BigInteger> = powerCache[radix] // volatile read
             if (exponent < cacheLine.size) {
@@ -1510,6 +1557,7 @@ class BigInteger: Number, Comparable<BigInteger> {
             return cacheLine2[exponent]
         }
 
+        @JvmStatic
         private fun reportOverflow() {
             throw ArithmeticException("BigInteger would overflow supported range")
         }

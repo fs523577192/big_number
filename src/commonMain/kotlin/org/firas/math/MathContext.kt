@@ -29,6 +29,7 @@
 package org.firas.math
 
 import kotlin.js.JsName
+import kotlin.jvm.JvmStatic
 
 /**
  * Immutable objects which encapsulate the context settings which
@@ -68,7 +69,10 @@ class MathContext(
         /* ----- Constants ----- */
         // defaults for constructors
         private const val DEFAULT_DIGITS = 9
+
+        @JvmStatic
         private val DEFAULT_ROUNDINGMODE = RoundingMode.HALF_UP
+
         // Smallest values for digits (Maximum is Integer.MAX_VALUE)
         private const val MIN_DIGITS = 0
 
@@ -84,6 +88,7 @@ class MathContext(
          * precision=0 roundingMode=HALF_UP
         ` *
          */
+        @JvmStatic
         val UNLIMITED = MathContext(0, RoundingMode.HALF_UP)
 
         /**
@@ -92,6 +97,7 @@ class MathContext(
          * rounding mode of [HALF_EVEN][RoundingMode.HALF_EVEN], the
          * IEEE 754R default.
          */
+        @JvmStatic
         val DECIMAL32 = MathContext(7, RoundingMode.HALF_EVEN)
 
         /**
@@ -100,6 +106,7 @@ class MathContext(
          * rounding mode of [HALF_EVEN][RoundingMode.HALF_EVEN], the
          * IEEE 754R default.
          */
+        @JvmStatic
         val DECIMAL64 = MathContext(16, RoundingMode.HALF_EVEN)
 
         /**
@@ -108,6 +115,7 @@ class MathContext(
          * rounding mode of [HALF_EVEN][RoundingMode.HALF_EVEN], the
          * IEEE 754R default.
          */
+        @JvmStatic
         val DECIMAL128 = MathContext(34, RoundingMode.HALF_EVEN)
 
         /**
@@ -127,6 +135,7 @@ class MathContext(
          * @throws NullPointerException if the argument is `null`
          */
         @JsName("parse")
+        @JvmStatic
         fun parse(str: String): MathContext {
             val setPrecision: Int
             val roundingMode: RoundingMode

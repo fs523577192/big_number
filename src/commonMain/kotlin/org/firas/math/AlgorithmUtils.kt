@@ -30,6 +30,7 @@
 package org.firas.math
 
 import kotlin.js.JsName
+import kotlin.jvm.JvmStatic
 
 /**
  *
@@ -105,6 +106,7 @@ internal class AlgorithmUtils private constructor() {
          * See:  http://en.wikipedia.org/wiki/Karatsuba_algorithm
          */
         @JsName("multiplyKaratsuba")
+        @JvmStatic
         internal fun multiplyKaratsuba(x: BigInteger, y: BigInteger): BigInteger {
             val xlen = x.mag.size
             val ylen = y.mag.size
@@ -163,6 +165,7 @@ internal class AlgorithmUtils private constructor() {
          *
          */
         @JsName("multiplyToomCook3")
+        @JvmStatic
         internal fun multiplyToomCook3(a: BigInteger, b: BigInteger): BigInteger {
             val alen = a.mag.size
             val blen = b.mag.size
@@ -247,6 +250,7 @@ internal class AlgorithmUtils private constructor() {
          * slices to the appropriate position when multiplying different-sized
          * numbers.
          */
+        @JvmStatic
         private fun getToomSlice(value: BigInteger, lowerSize: Int, upperSize: Int,
                                  slice: Int, fullsize: Int): BigInteger {
             var start: Int
@@ -295,6 +299,7 @@ internal class AlgorithmUtils private constructor() {
          * @return `this<sup>2</sup>`
          */
         @JsName("square")
+        @JvmStatic
         internal fun square(value: BigInteger): BigInteger {
             if (value.signum == 0) {
                 return BigInteger.ZERO
@@ -318,6 +323,7 @@ internal class AlgorithmUtils private constructor() {
          * int array z.  The contents of x are not changed.
          */
         @JsName("squareToLen")
+        @JvmStatic
         internal fun squareToLen(x: IntArray, len: Int, z: IntArray?): IntArray {
             var z = z
             /*
@@ -393,6 +399,7 @@ internal class AlgorithmUtils private constructor() {
          * Multiply an array by one word k and add to result, return the carry
          */
         @JsName("mulAdd")
+        @JvmStatic
         internal fun mulAdd(out: IntArray, inArray: IntArray, offset: Int, len: Int, k: Int): Int {
             var offset = offset
             val kLong = k.toLong() and BigInteger.LONG_MASK
@@ -413,6 +420,7 @@ internal class AlgorithmUtils private constructor() {
          * Add one word to the number a mlen words into a. Return the resulting
          * carry.
          */
+        @JvmStatic
         private fun addOne(a: IntArray, offset: Int, mlen: Int, carry: Int): Int {
             var offset = a.size - 1 - mlen - offset
             var mlen = mlen
@@ -438,6 +446,7 @@ internal class AlgorithmUtils private constructor() {
 
         // shifts a up to len right n bits assumes no leading zeros, 0<n<32
         @JsName("primitiveRightShift")
+        @JvmStatic
         internal fun primitiveRightShift(a: IntArray, len: Int, n: Int) {
             val n2 = 32 - n
             var i = len - 1
@@ -453,6 +462,7 @@ internal class AlgorithmUtils private constructor() {
 
         // shifts a up to len left n bits assumes no leading zeros, 0<=n<32
         @JsName("primitiveLeftShift")
+        @JvmStatic
         internal fun primitiveLeftShift(a: IntArray, len: Int, n: Int) {
             if (len == 0 || n == 0) {
                 return
@@ -475,6 +485,7 @@ internal class AlgorithmUtils private constructor() {
          * by 2^(32*mlen). Adapted from Colin Plumb's C library.
          */
         @JsName("montReduce")
+        @JvmStatic
         internal fun montReduce(n: IntArray, mod: IntArray, mlen: Int, inv: Int): IntArray {
             var c = 0
             var len = mlen
@@ -500,6 +511,7 @@ internal class AlgorithmUtils private constructor() {
          * Returns -1, 0 or +1 as big-endian unsigned int array arg1 is less than,
          * equal to, or greater than arg2 up to length len.
          */
+        @JvmStatic
         private fun intArrayCmpToLen(arg1: IntArray, arg2: IntArray, len: Int): Int {
             for (i in 0 until len) {
                 val b1 = arg1[i].toLong() and BigInteger.LONG_MASK
@@ -517,6 +529,7 @@ internal class AlgorithmUtils private constructor() {
         /**
          * Subtracts two numbers of same length, returning borrow.
          */
+        @JvmStatic
         private fun subN(a: IntArray, b: IntArray, length: Int): Int {
             var len = length
             var sum: Long = 0
@@ -537,6 +550,7 @@ internal class AlgorithmUtils private constructor() {
          * has better asymptotic performance than the algorithm used in
          * squareToLen.
          */
+        @JvmStatic
         private fun squareKaratsuba(value: BigInteger): BigInteger {
             val half = (value.mag.size + 1) / 2
 
@@ -557,6 +571,7 @@ internal class AlgorithmUtils private constructor() {
          * that has better asymptotic performance than the algorithm used in
          * squareToLen or squareKaratsuba.
          */
+        @JvmStatic
         private fun squareToomCook3(value: BigInteger): BigInteger {
             val len = value.mag.size
 
@@ -610,6 +625,7 @@ internal class AlgorithmUtils private constructor() {
          * Returns a new BigInteger representing n lower ints of the number.
          * This is used by Karatsuba multiplication and Karatsuba squaring.
          */
+        @JvmStatic
         private fun getLower(value: BigInteger, n: Int): BigInteger {
             val len = value.mag.size
 
@@ -628,6 +644,7 @@ internal class AlgorithmUtils private constructor() {
          * ints of the number.  This is used by Karatsuba multiplication and
          * Karatsuba squaring.
          */
+        @JvmStatic
         private fun getUpper(value: BigInteger, n: Int): BigInteger {
             val len = value.mag.size
 
@@ -650,6 +667,7 @@ internal class AlgorithmUtils private constructor() {
          * undefined.  Note that this is expected to be called with positive
          * arguments only.
          */
+        @JvmStatic
         private fun exactDivideBy3(value: BigInteger): BigInteger {
             val len = value.mag.size
             var result = IntArray(len)
@@ -695,6 +713,7 @@ internal class AlgorithmUtils private constructor() {
          * @see MutableBigInteger.divideKnuth
          */
         @JsName("divideKnuth")
+        @JvmStatic
         internal fun divideKnuth(dividend: BigInteger, divisor: BigInteger): BigInteger {
             val q = MutableBigInteger()
             val a = MutableBigInteger(dividend.mag)
@@ -705,6 +724,7 @@ internal class AlgorithmUtils private constructor() {
         }
 
         @JsName("remainderKnuth")
+        @JvmStatic
         internal fun remainderKnuth(dividend: BigInteger, divisor: BigInteger): BigInteger {
             val q = MutableBigInteger()
             val a = MutableBigInteger(dividend.mag)
@@ -714,6 +734,7 @@ internal class AlgorithmUtils private constructor() {
         }
 
         @JsName("divideAndRemainderKnuth")
+        @JvmStatic
         internal fun divideAndRemainderKnuth(dividend: BigInteger, divisor: BigInteger): Array<BigInteger> {
             val q = MutableBigInteger()
             val a = MutableBigInteger(dividend.mag)
@@ -730,6 +751,7 @@ internal class AlgorithmUtils private constructor() {
          * @return `dividend / divisor`
          */
         @JsName("divideBurnikelZiegler")
+        @JvmStatic
         internal fun divideBurnikelZiegler(dividend: BigInteger, divisor: BigInteger): BigInteger {
             return divideAndRemainderBurnikelZiegler(dividend, divisor)[0]
         }
@@ -741,6 +763,7 @@ internal class AlgorithmUtils private constructor() {
          * @return `dividend % divisor`
          */
         @JsName("remainderBurnikelZiegler")
+        @JvmStatic
         internal fun remainderBurnikelZiegler(dividend: BigInteger, divisor: BigInteger): BigInteger {
             return divideAndRemainderBurnikelZiegler(dividend, divisor)[1]
         }
@@ -753,6 +776,7 @@ internal class AlgorithmUtils private constructor() {
          * @return an array containing the quotient and remainder
          */
         @JsName("divideAndRemainderBurnikelZiegler")
+        @JvmStatic
         internal fun divideAndRemainderBurnikelZiegler(
                 dividend: BigInteger, divisor: BigInteger): Array<BigInteger> {
             val q = MutableBigInteger()
@@ -768,6 +792,7 @@ internal class AlgorithmUtils private constructor() {
          * mod a modulus that is a power of 2. The modulus is 2^k.
          */
         @JsName("euclidModInverse")
+        @JvmStatic
         internal fun euclidModInverse(value: MutableBigInteger, k: Int): MutableBigInteger {
             var b = MutableBigInteger(1)
             b.leftShift(k)
@@ -836,6 +861,7 @@ internal class AlgorithmUtils private constructor() {
          * Returns a BigInteger whose value is (this ** exponent) mod (2**p)
          */
         @JsName("modPow2")
+        @JvmStatic
         internal fun modPow2(value: BigInteger, exponent: BigInteger, p: Int): BigInteger {
             /*
              * Perform exponentiation using repeated squaring trick, chopping off
@@ -867,6 +893,7 @@ internal class AlgorithmUtils private constructor() {
          * Returns a BigInteger whose value is this mod(2**p).
          * Assumes that this `BigInteger >= 0` and `p > 0`.
          */
+        @JvmStatic
         private fun mod2(value: BigInteger, p: Int): BigInteger {
             if (value.bitLength() <= p) {
                 return value
