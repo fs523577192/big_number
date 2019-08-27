@@ -1,6 +1,15 @@
-plugins {
-    id 'kotlin-multiplatform' version '1.3.31'
+buildscript {
+    repositories {
+        mavenLocal()
+        maven {
+            url 'https://maven.aliyun.com/repository/central'
+        }
+    }
 }
+plugins {
+    id 'kotlin-multiplatform' version '1.3.41'
+}
+
 repositories {
     mavenLocal()
     maven {
@@ -9,23 +18,17 @@ repositories {
 }
 
 group 'org.firas.big_number'
-version '0.7.0'
+version '0.7.2'
 
 apply plugin: 'maven-publish'
 kotlin {
-    targets {
-        fromPreset(presets.jvm, 'jvm')
-        fromPreset(presets.js, 'js')
-        // For ARM, preset should be changed to presets.iosArm32 or presets.iosArm64
-        // For Linux, preset should be changed to e.g. presets.linuxX64
-        // For MacOS, preset should be changed to e.g. presets.macosX64
-        // fromPreset(presets.mingwX64, 'mingw')
-    }
+    jvm()
+    js()
     sourceSets {
         commonMain {
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
-                api 'org.firas.basic_utils:basic_utils:1.2.0'
+                api 'org.firas.basic_utils:basic_utils:1.4.0'
             }
         }
         commonTest {

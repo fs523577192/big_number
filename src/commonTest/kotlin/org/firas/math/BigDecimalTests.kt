@@ -16,7 +16,7 @@ class BigDecimalTests {
         val random = Random.Default
         for (i in 1..10000) {
             val a = random.nextLong(100L, Long.MAX_VALUE)
-            val aa = BigDecimal.valueOf(a)
+            val aa = longToBigDecimal(a)
 
             val temp = a.toString()
             val expected = /* if (temp.endsWith("00"))
@@ -35,9 +35,9 @@ class BigDecimalTests {
         val random = Random.Default
         for (i in 1..10000) {
             val a = random.nextInt().toLong()
-            val aa = BigDecimal.valueOf(a)
-            assertEquals(aa, aa + BigDecimal.ZERO)
-            assertEquals(aa, BigDecimal.ZERO + aa)
+            val aa = longToBigDecimal(a)
+            assertEquals(aa, aa + bigDecimalZero)
+            assertEquals(aa, bigDecimalZero + aa)
         }
     }
 
@@ -46,10 +46,10 @@ class BigDecimalTests {
         val random = Random.Default
         for (i in 1..10000) {
             val a = random.nextInt().toLong()
-            val aa = BigDecimal.valueOf(a)
-            assertEquals(aa, aa - BigDecimal.ZERO)
+            val aa = longToBigDecimal(a)
+            assertEquals(aa, aa - bigDecimalZero)
 
-            assertEquals(BigDecimal.ZERO, aa - aa)
+            assertEquals(bigDecimalZero, aa - aa)
         }
     }
 
@@ -58,12 +58,12 @@ class BigDecimalTests {
         val random = Random.Default
         for (i in 1..10000) {
             val a = random.nextInt().toLong()
-            val aa = BigDecimal.valueOf(a)
-            assertEquals(aa, aa * BigDecimal.ONE)
-            assertEquals(aa, BigDecimal.ONE * aa)
+            val aa = longToBigDecimal(a)
+            assertEquals(aa, aa * bigDecimalOne)
+            assertEquals(aa, bigDecimalOne * aa)
 
-            assertEquals(BigDecimal.ZERO, aa * BigDecimal.ZERO)
-            assertEquals(BigDecimal.ZERO, BigDecimal.ZERO * aa)
+            assertEquals(bigDecimalZero, aa * bigDecimalZero)
+            assertEquals(bigDecimalZero, bigDecimalZero * aa)
         }
     }
 
@@ -72,7 +72,7 @@ class BigDecimalTests {
         val random = Random.Default
         for (i in 1..10000) {
             val l = random.nextLong(1L shl FloatConsts.SIGNIFICAND_WIDTH)
-            assertEquals(l.toFloat(), BigInteger.valueOf(l).toFloat())
+            assertEquals(l.toFloat(), longToBigInteger(l).toFloat())
         }
     }
 
@@ -81,7 +81,7 @@ class BigDecimalTests {
         val random = Random.Default
         for (i in 1..10000) {
             val l = random.nextLong(1L shl DoubleConsts.SIGNIFICAND_WIDTH)
-            assertEquals(l.toDouble(), BigInteger.valueOf(l).toDouble())
+            assertEquals(l.toDouble(), longToBigInteger(l).toDouble())
         }
     }
 }

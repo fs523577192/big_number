@@ -27,7 +27,7 @@
 package org.firas.math
 
 import kotlin.js.JsName
-import kotlin.jvm.JvmStatic
+// import kotlin.jvm.JvmStatic
 import kotlin.random.Random
 import kotlin.math.absoluteValue
 
@@ -52,7 +52,7 @@ internal class PrimeUtils private constructor() {
         // Certainty required to meet the spec of probablePrime
         private const val DEFAULT_PRIME_CERTAINTY = 100
 
-        @JvmStatic
+        // @JvmStatic
         private val SMALL_PRIME_PRODUCT = BigInteger.valueOf(3L * 5 * 7 * 11 * 13 * 17 * 19 * 23 * 29 * 31 * 37 * 41)
 
         /**
@@ -70,7 +70,7 @@ internal class PrimeUtils private constructor() {
          * `false` if it's definitely composite.
          */
         @JsName("primeToCertainty")
-        @JvmStatic
+        // @JvmStatic
         internal fun primeToCertainty(value: BigInteger, certainty: Int, random: Random): Boolean {
             var rounds: Int
             val n = (minOf(certainty, Int.MAX_VALUE - 1) + 1) / 2
@@ -124,7 +124,7 @@ internal class PrimeUtils private constructor() {
          * Computes Jacobi(p,n).
          * Assumes n positive, odd, n>=3.
          */
-        @JvmStatic
+        // @JvmStatic
         private fun jacobiSymbol(p: Int, n: BigInteger): Int {
             var p = p
             if (p == 0) {
@@ -195,7 +195,7 @@ internal class PrimeUtils private constructor() {
             return 0
         } // private fun jacobiSymbol(p: Int, n: BigInteger): Int
 
-        @JvmStatic
+        // @JvmStatic
         private fun lucasLehmerSequence(z: Int, k: BigInteger, n: BigInteger): BigInteger {
             val d = BigInteger.valueOf(z.toLong())
             var u = BigInteger.ONE
@@ -240,7 +240,7 @@ internal class PrimeUtils private constructor() {
          * This BigInteger is a positive, odd number greater than 2.
          * iterations<=50.
          */
-        @JvmStatic
+        // @JvmStatic
         private fun passesMillerRabin(value: BigInteger, iterations: Int, rnd: Random?): Boolean {
             var rnd = rnd
             // Find a and m such that m is odd and this == 1 + 2**a * m
@@ -279,7 +279,7 @@ internal class PrimeUtils private constructor() {
          *
          * This method assumes bitLength > 1.
          */
-        @JvmStatic
+        // @JvmStatic
         private fun smallPrime(bitLength: Int, certainty: Int, rnd: Random): BigInteger {
             val magLen = (bitLength + 31).ushr(5)
             val temp = IntArray(magLen)
@@ -323,7 +323,7 @@ internal class PrimeUtils private constructor() {
          * a sieve to eliminate most composites before using a more expensive
          * test.
          */
-        @JvmStatic
+        // @JvmStatic
         private fun largePrime(bitLength: Int, certainty: Int, rnd: Random): BigInteger {
             var p: BigInteger
             p = BigInteger.fromRandom(bitLength, rnd).setBit(bitLength - 1)
@@ -346,7 +346,7 @@ internal class PrimeUtils private constructor() {
             return candidate
         } // private fun largePrime(bitLength: Int, certainty: Int, rnd: Random): BigInteger
 
-        @JvmStatic
+        // @JvmStatic
         private fun getPrimeSearchLen(bitLength: Int): Int {
             if (bitLength > PRIME_SEARCH_BIT_LENGTH_LIMIT + 1) {
                 throw ArithmeticException("Prime search implementation restriction on bitLength")

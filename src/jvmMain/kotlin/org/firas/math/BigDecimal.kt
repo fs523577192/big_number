@@ -1,18 +1,21 @@
+@file:JvmName("BigDecimalJvmKt")
+
 package org.firas.math
 
-/**
- *
- * @author Wu Yuping
- */
-internal actual fun expandBigIntegerTenPowers(n: Int): BigInteger {
-    synchronized(BigDecimal::class.java) {
-        return BigDecimal._expandBigIntegerTenPowers(n)
-    }
-}
+actual typealias BigDecimal = java.math.BigDecimal
 
-private val threadLocalStringBuilderHelper = ThreadLocal.withInitial {
-    BigDecimal.Companion.StringBuilderHelper()
+actual val bigDecimalZero: BigDecimal = BigDecimal.ZERO!!
+actual val bigDecimalOne: BigDecimal = BigDecimal.ONE!!
+
+actual fun longToBigDecimal(value: Long): BigDecimal = BigDecimal.valueOf(value)
+actual fun doubleToBigDecimal(value: Double): BigDecimal = BigDecimal.valueOf(value)
+actual fun stringToBigDecimal(value: String): BigDecimal {
+    return if (Regex("^[+-]?(0+(\\.0+)?|\\.0+)$").matches(value)) bigDecimalZero
+            else if (Regex("^[+-]?0*1(\\.0+)?$").matches(value)) bigDecimalOne
+            else BigDecimal(value)
 }
-internal actual fun getStringBuilderHelper(): BigDecimal.Companion.StringBuilderHelper {
-    return threadLocalStringBuilderHelper.get()
+actual fun bigIntegerToBigDecimal(value: BigInteger): BigDecimal {
+    return if (bigIntegerZero == value) bigDecimalZero
+            else if (bigIntegerOne == value) bigDecimalOne
+            else BigDecimal(value)
 }
