@@ -18,7 +18,7 @@ repositories {
 }
 
 group 'org.firas.big_number'
-version '0.7.2'
+version '0.8.0'
 
 apply plugin: 'maven-publish'
 kotlin {
@@ -28,7 +28,7 @@ kotlin {
         commonMain {
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
-                api 'org.firas.basic_utils:basic_utils:1.4.0'
+                api 'org.firas.basic_utils:basic_utils:1.5.0'
             }
         }
         commonTest {
