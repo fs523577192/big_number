@@ -17,6 +17,7 @@ expect class BigInteger: Number, Comparable<BigInteger> {
     fun byteValueExact(): Byte
 
     fun signum(): Int
+    fun bitLength(): Int
 
     fun min(other: BigInteger): BigInteger
     fun max(other: BigInteger): BigInteger

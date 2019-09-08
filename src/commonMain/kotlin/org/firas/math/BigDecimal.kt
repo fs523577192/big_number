@@ -27,6 +27,9 @@ expect class BigDecimal: Number, Comparable<BigDecimal> {
     fun multiply(multiplicand: BigDecimal): BigDecimal
     fun divide(divisor: BigDecimal): BigDecimal
     fun remainder(divisor: BigDecimal): BigDecimal
+
+    fun toBigInteger(): BigInteger
+    fun toBigIntegerExact(): BigInteger
 }
 
 inline operator fun BigDecimal.unaryMinus(): BigDecimal {

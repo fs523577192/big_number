@@ -2915,7 +2915,7 @@ internal constructor(
      * @jls 5.1.3 Narrowing Primitive Conversion
      */
     @JsName("toBigInteger")
-    fun toBigInteger(): BigInteger {
+    actual fun toBigInteger(): BigInteger {
         // force to an integer, quietly
         return this.setScale(0, RoundingMode.DOWN).inflated()
     }
@@ -2931,7 +2931,7 @@ internal constructor(
      * @since  Java 1.5
      */
     @JsName("toBigIntegerExact")
-    fun toBigIntegerExact(): BigInteger {
+    actual fun toBigIntegerExact(): BigInteger {
         // round to an integer, with Exception if decimal part non-0
         return this.setScale(0, RoundingMode.UNNECESSARY).inflated()
     }
@@ -3868,10 +3868,10 @@ internal constructor(
             }
         } else { // E-notation is needed
             if (sci) {                       // Scientific notation
-                buf.append(coeff[offset]);   // first character
+                buf.append(coeff[offset])   // first character
                 if (coeffLen > 1) {          // more to come
-                    buf.append('.');
-                    buf.append(coeff, offset + 1, coeffLen - 1);
+                    buf.append('.')
+                    buf.append(coeff, offset + 1, coeffLen - 1)
                 }
             } else {                         // Engineering notation
                 var sig = (adjusted % 3).toInt()
@@ -4152,7 +4152,7 @@ actual fun doubleToBigDecimal(value: Double): BigDecimal { // = BigDecimal.value
 actual fun stringToBigDecimal(value: String): BigDecimal {
     return if (Regex("^[+-]?(0+(\\.0+)?|\\.0+)$").matches(value)) bigDecimalZero
             else if (Regex("^[+-]?0*1(\\.0+)?$").matches(value)) bigDecimalOne
-            else TODO("Not implemented yet") // BigDecimal(value)
+            else BigDecimal.valueOf(value)
 }
 actual fun bigIntegerToBigDecimal(value: BigInteger): BigDecimal {
     return if (bigIntegerZero == value) bigDecimalZero

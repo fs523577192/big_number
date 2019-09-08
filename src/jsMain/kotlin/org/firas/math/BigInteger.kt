@@ -2065,7 +2065,7 @@ actual class BigInteger: Number, Comparable<BigInteger> {
      * representation of this BigInteger, *excluding* a sign bit.
      */
     @JsName("bitLength")
-    fun bitLength(): Int {
+    actual fun bitLength(): Int {
         var n = bitLengthPlusOne - 1
         if (n == -1) { // bitLength not initialized yet
             val m = mag
